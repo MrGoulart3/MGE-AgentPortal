@@ -15,7 +15,7 @@ pre#tela{background:var(--term);color:var(--termtext);border-radius:10px;padding
 textarea{width:100%;min-height:80px;resize:vertical;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text)}
 button.b,input{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 12px}
 button.b{cursor:pointer}button.main{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}button.b.on{background:var(--accent);border-color:var(--accent);color:#fff}
-button.perigo{border-color:var(--bad);color:var(--bad)}
+#idiomas button.b{font-size:12px;padding:3px 6px}button.perigo{border-color:var(--bad);color:var(--bad)}
 #chat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;margin-top:10px;display:flex;flex-direction:column;gap:10px;height:52vh}
 #chat .m{max-width:min(900px,92%);padding:10px 14px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}
 #chat .u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
@@ -44,38 +44,38 @@ button.perigo{border-color:var(--bad);color:var(--bad)}
 @media(max-width:760px){.layout{grid-template-columns:1fr}#lista .space{display:none}#lista select{display:block}pre#tela,#chat{height:46vh}main{padding:12px}}
 </style>
 <main>
-<header><div><h1>Agent Portal</h1><small>Conversa com os agentes de IA do herdr</small></div><small id="status"></small></header>
+<header><div><h1>Agent Portal</h1><small data-i18n="subtitle">Conversa com os agentes de IA do herdr</small></div><div class="row" style="margin-top:0"><small id="status"></small><span id="idiomas"><button class="b" type="button" data-idioma="pt" lang="pt-BR">PT</button> | <button class="b" type="button" data-idioma="en" lang="en">EN</button></span></div></header>
 
 <section id="login" class="card" hidden>
-<h2>Chave de acesso</h2>
-<p class="muted" id="ondefica">Digite a chave do portal. Pela internet, cada aparelho novo também precisa da aprovação do dono.</p>
-<form id="lf" class="row"><input id="chave" type="password" autocomplete="current-password" placeholder="chave" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1"><button class="b" type="button" id="vchave">Ver</button><button class="b main">Entrar</button></form>
-<label class="muted" style="font-size:13px;display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="lembrar" checked style="padding:0;width:auto;margin-top:2px"> lembrar a chave neste navegador (desmarque em computador de outra pessoa)</label>
+<h2 data-i18n="accessKey">Chave de acesso</h2>
+<p class="muted" id="ondefica" data-i18n="loginHelp">Digite a chave do portal. Pela internet, cada aparelho novo também precisa da aprovação do dono.</p>
+<form id="lf" class="row"><input id="chave" type="password" autocomplete="current-password" data-i18n-ph="key" placeholder="chave" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1"><button class="b" type="button" id="vchave" data-i18n="show">Ver</button><button class="b main" data-i18n="login">Entrar</button></form>
+<label class="muted" style="font-size:13px;display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="lembrar" checked style="padding:0;width:auto;margin-top:2px"> <span data-i18n="remember">lembrar a chave neste navegador (desmarque em computador de outra pessoa)</span></label>
 <p id="lerr" class="err"></p>
-<div id="aprov" hidden><p><strong>Este aparelho precisa da sua aprovação.</strong></p>
-<div class="row"><input id="apnome" placeholder="nome deste aparelho (ex.: PC do serviço)" maxlength="40" style="flex:1"><button class="b main" id="appedir" type="button">Pedir aprovação</button></div>
+<div id="aprov" hidden><p><strong data-i18n="approvalNeeded">Este aparelho precisa da sua aprovação.</strong></p>
+<div class="row"><input id="apnome" data-i18n-ph="deviceName" placeholder="nome deste aparelho (ex.: PC do serviço)" maxlength="40" style="flex:1"><button class="b main" id="appedir" type="button" data-i18n="requestApproval">Pedir aprovação</button></div>
 <p id="apinfo" class="muted"></p></div>
 </section>
 
 <div id="app" class="layout" hidden>
-<aside id="lista" class="card"><div class="row" id="tipos" style="margin:0 0 8px"><button class="b" type="button" data-tipo="claude">Claude</button><button class="b" type="button" data-tipo="codex">Codex</button><button class="b" type="button" data-tipo="todos">Todos</button></div><select id="sel" aria-label="Escolher space"></select><div id="spaces"></div>
-<div class="row"><button class="b" id="vacessos" type="button">Acessos <span id="npend"></span></button><button class="b" id="sair" type="button">Sair</button></div>
+<aside id="lista" class="card"><div class="row" id="tipos" style="margin:0 0 8px"><button class="b" type="button" data-tipo="claude">Claude</button><button class="b" type="button" data-tipo="codex">Codex</button><button class="b" type="button" data-tipo="todos" data-i18n="all">Todos</button></div><select id="sel" data-i18n-label="chooseSpace" aria-label="Escolher space"></select><div id="spaces"></div>
+<div class="row"><button class="b" id="vacessos" type="button"><span data-i18n="accesses">Acessos</span> <span id="npend"></span></button><button class="b" id="sair" type="button" data-i18n="logout">Sair</button></div>
 <div id="acessos" hidden style="margin-top:10px;font-size:13px"></div></aside>
 <section class="card" id="sec">
-<div class="row" style="margin-top:0;justify-content:space-between"><strong id="nome">Escolha um space</strong><small id="estado" class="muted"></small></div>
-<div class="row" id="ctl" style="margin-top:8px"><small class="muted">Tela:</small>
-<button class="b" data-modo="conversa" type="button">💬 Conversa</button><button class="b" data-modo="vivo" type="button">● Terminal ao vivo</button><button class="b" data-modo="historico" type="button">Histórico</button>
-<small class="muted" style="margin-left:6px">Tamanho:</small><button class="b" id="ajustar" type="button">↔ Ajustar</button><button class="b" id="quebrar" type="button">Quebrar linhas</button><button class="b" data-z="-1" type="button">A−</button><button class="b" data-z="1" type="button">A+</button>
-<button class="b" data-h="-1" type="button">↕−</button><button class="b" data-h="1" type="button">↕+</button><button class="b" id="cheia" type="button">⛶ Tela cheia</button></div>
+<div class="row" style="margin-top:0;justify-content:space-between"><strong id="nome" data-i18n="chooseSpace">Escolha um space</strong><small id="estado" class="muted"></small></div>
+<div class="row" id="ctl" style="margin-top:8px"><small class="muted" data-i18n="view">Tela:</small>
+<button class="b" data-modo="conversa" type="button" data-i18n="chat">💬 Conversa</button><button class="b" data-modo="vivo" type="button" data-i18n="live">● Terminal ao vivo</button><button class="b" data-modo="historico" type="button" data-i18n="history">Histórico</button>
+<small class="muted" style="margin-left:6px" data-i18n="size">Tamanho:</small><button class="b" id="ajustar" type="button" data-i18n="fit">↔ Ajustar</button><button class="b" id="quebrar" type="button" data-i18n="wrap">Quebrar linhas</button><button class="b" data-z="-1" type="button">A−</button><button class="b" data-z="1" type="button">A+</button>
+<button class="b" data-h="-1" type="button">↕−</button><button class="b" data-h="1" type="button">↕+</button><button class="b" id="cheia" type="button" data-i18n="fullscreen">⛶ Tela cheia</button></div>
 <pre id="tela" hidden></pre><div id="chat" hidden></div>
-<div id="dlg" hidden><strong>⚠ O space está pedindo uma decisão</strong><pre id="dlgq"></pre><div class="ops" id="dlgops"></div><div class="row"><button class="b" id="dlgesc" type="button">Cancelar (Esc)</button><small class="muted">Para responder com texto livre: cancele e mande um recado.</small></div></div>
+<div id="dlg" hidden><strong data-i18n="decision">⚠ O space está pedindo uma decisão</strong><pre id="dlgq"></pre><div class="ops" id="dlgops"></div><div class="row"><button class="b" id="dlgesc" type="button" data-i18n="cancel">Cancelar (Esc)</button><small class="muted" data-i18n="freeText">Para responder com texto livre: cancele e mande um recado.</small></div></div>
 <div id="omc" hidden></div>
-<div class="row teclas"><small class="muted">Teclas:</small>
+<div class="row teclas"><small class="muted" data-i18n="keys">Teclas:</small>
 <button class="b" data-k="1" type="button">1</button><button class="b" data-k="2" type="button">2</button><button class="b" data-k="3" type="button">3</button>
-<button class="b" data-k="up" type="button">↑</button><button class="b" data-k="down" type="button">↓</button><button class="b" data-k="enter" type="button">Enter</button><button class="b" data-k="esc" type="button">Esc (interromper)</button></div>
-<form id="ef"><div id="entrada"><textarea id="texto" placeholder="Recado para este space… (Enter envia · Shift+Enter pula linha · arraste ou cole arquivos)" style="margin-top:10px"></textarea></div>
+<button class="b" data-k="up" type="button">↑</button><button class="b" data-k="down" type="button">↓</button><button class="b" data-k="enter" type="button">Enter</button><button class="b" data-k="esc" type="button" data-i18n="interrupt">Esc (interromper)</button></div>
+<form id="ef"><div id="entrada"><textarea id="texto" data-i18n-ph="messagePlaceholder" placeholder="Recado para este space… (Enter envia · Shift+Enter pula linha · arraste ou cole arquivos)" style="margin-top:10px"></textarea></div>
 <div class="anexos" id="anexos"></div>
-<div class="row"><button class="b main" id="enviar">Enviar</button><button class="b" type="button" id="clip">📎 Anexar</button><input type="file" id="arq" multiple hidden><small id="msg"></small></div></form>
+<div class="row"><button class="b main" id="enviar" data-i18n="send">Enviar</button><button class="b" type="button" id="clip" data-i18n="attach">📎 Anexar</button><input type="file" id="arq" multiple hidden><small id="msg"></small></div></form>
 <div class="hist" id="hist"></div>
 </section>
 </div>

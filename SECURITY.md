@@ -1,72 +1,74 @@
-# Segurança
+*[Versão em português](SECURITY.pt-BR.md)*
 
-> **Quem controla o portal controla os agentes e, por eles, a máquina.** A chave e a aprovação de aparelho concedem acesso administrativo aos agentes disponíveis. Este portal não é um isolamento de execução nem um serviço para usuários mutuamente desconfiados.
+# Security
 
-## Modelo de ameaça
+> **Whoever controls the portal controls the agents and, through them, the machine.** The key and device approval grant administrative access to the available agents. This portal is neither an execution sandbox nor a service for users who do not trust each other.
 
-O modelo considera visitantes da internet sem autorização, tentativas de adivinhar a chave, pedidos de aprovação indevidos, conteúdo malicioso exibido no navegador, requisições lentas e escolhas enviadas para decisões que já mudaram.
+## Threat model
 
-A entrada privada exige só a chave. A entrada pública exige chave e aparelho aprovado e escuta somente em `127.0.0.1`. O Tailscale Funnel termina o HTTPS e encaminha para essa porta local. A porta privada não deve ser publicada pelo Funnel, redirecionamento do roteador ou outro proxy público.
+The model covers unauthorized internet visitors, attempts to guess the key, improper approval requests, malicious content displayed in the browser, slow requests, and choices submitted for decisions that have already changed.
 
-O proxy e sua atribuição de origem fazem parte da confiança: na porta pública, o código usa **o último valor de `X-Forwarded-For`**, esperando que o Tailscale acrescente a origem ao final. Valores anteriores podem ser forjados. Outro proxy exige revisar essa premissa. Sem esse cabeçalho, os clientes públicos compartilham a identidade `funnel`.
+The private entry point requires only the key. The public entry point requires the key and an approved device and listens only on `127.0.0.1`. Tailscale Funnel terminates HTTPS and forwards to this local port. The private port must not be published through Funnel, router port forwarding, or another public proxy.
 
-## Autenticação e aparelhos
+The proxy and its source attribution are part of the trust boundary: on the public port, the code uses **the last value of `X-Forwarded-For`**, expecting Tailscale to append the source at the end. Earlier values can be forged. Another proxy requires reviewing this assumption. Without this header, public clients share the `funnel` identity.
 
-- A chave é comparada com `hmac.compare_digest`; sem chave configurada, a autenticação falha. Ela é enviada no cabeçalho `X-Token`.
-- Por cliente, 15 chaves erradas em uma janela de 15 minutos limitam novas tentativas erradas. Ausência de chave não conta; uma chave correta continua sendo aceita. O controle fica em memória e reinicia com o processo.
-- Pedidos de aparelho exigem a chave, têm limite de três por cliente por hora e no máximo cinco pendentes simultâneos.
-- O aparelho novo mostra um código aleatório de seis dígitos. O dono precisa digitá-lo numa sessão confiável, privada ou já aprovada. A lista de pedidos não entrega o código. O pedido expira em 15 minutos; três códigos errados o recusam.
-- O segredo do aparelho é enviado em cookie `pdev` com `HttpOnly`, `Secure`, `SameSite=Strict` e `Path=/`. Sua validade acompanha `dias_aparelho`, por padrão 30 dias. O servidor guarda o hash SHA-256 do segredo; o código pendente fica no arquivo privado de acessos até o pedido ser concluído ou expirar.
-- Compatibilidade com aparelhos antigos aceita `X-Device` e migra para o cookie HttpOnly. Novas aprovações usam cookie.
-- A chave pode ser lembrada no armazenamento local do navegador ou mantida na sessão. `HttpOnly` protege o cookie de aparelho, não a chave salva nem um navegador comprometido.
+## Authentication and devices
 
-## Proteções HTTP
+- The key is compared using `hmac.compare_digest`; without a configured key, authentication fails. It is sent in the `X-Token` header.
+- Per client, 15 incorrect keys within a 15-minute window limit further incorrect attempts. A missing key does not count; a correct key is still accepted. This control is held in memory and resets with the process.
+- Device requests require the key, are limited to three per client per hour, and allow at most five simultaneous pending requests.
+- The new device shows a random six-digit code. The owner must enter it in a trusted session, either private or already approved. The request list does not reveal the code. The request expires in 15 minutes; three incorrect codes cause it to be denied.
+- The device secret is sent in a `pdev` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`. Its validity follows `dias_aparelho`, defaulting to 30 days. The server stores the SHA-256 hash of the secret; the pending code stays in the private access file until the request is completed or expires.
+- Compatibility with older devices accepts `X-Device` and migrates to the HttpOnly cookie. New approvals use cookies.
+- The key can be remembered in browser local storage or kept in the session. `HttpOnly` protects the device cookie, not the saved key or a compromised browser.
 
-- CSP com `script-src 'self'`, sem scripts inline, `frame-ancestors 'none'`, `base-uri 'none'`, `object-src 'none'` e conexões restritas à própria origem. Estilos inline são permitidos.
-- `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` e `Cache-Control: no-store`.
-- HSTS com validade de um ano nas respostas da porta pública. O HTTPS depende do Funnel.
-- Conferência exata de Host quando `hosts_permitidos` está preenchido; Host fora da lista recebe 421. Lista vazia desativa o controle: preencha antes de publicar.
-- Vagas independentes por listener: 24 na entrada privada e 16 na pública por padrão. Conexões excedentes são fechadas.
-- Prazo total de 20 segundos para linha de requisição e cabeçalhos. O corpo exige `Content-Length`, tem limite de tamanho e prazo total entre 30 e 900 segundos, calculado pelo tamanho, com timeout por leitura. Corpos incompletos não são aceitos.
+## HTTP protections
 
-Esses limites reduzem abuso de recursos; não garantem disponibilidade diante de ataques distribuídos ou saturação da rede.
+- CSP with `script-src 'self'`, no inline scripts, `frame-ancestors 'none'`, `base-uri 'none'`, `object-src 'none'`, and connections restricted to the same origin. Inline styles are allowed.
+- `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
+- HSTS valid for one year on public-port responses. HTTPS depends on Funnel.
+- Exact Host checking when `hosts_permitidos` is populated; a Host outside the list receives 421. An empty list disables this control: fill it before publishing.
+- Independent slots per listener: 24 at the private entry point and 16 at the public one by default. Excess connections are closed.
+- A total deadline of 20 seconds for the request line and headers. The body requires `Content-Length`, has a size limit and a total deadline between 30 and 900 seconds calculated from its size, with a timeout per read. Incomplete bodies are not accepted.
 
-## Comandos, decisões e dados
+These limits reduce resource abuse; they do not guarantee availability under distributed attacks or network saturation.
 
-O herdr e o comando opcional de notificações são chamados por argumentos em lista, sem shell. O pane precisa ter formato válido e pertencer aos spaces visíveis na entrada usada. Recados têm limite de 8.000 caracteres e removem caracteres de controle.
+## Commands, decisions, and data
 
-As teclas permitidas são `esc`, `enter`, `up`, `down` e os dígitos de `1` a `9`. Para escolhas numéricas, o servidor relê o diálogo e compara sua impressão digital SHA-256 abreviada com a enviada pelo navegador. Enter também exige a impressão digital quando há diálogo. Se a decisão mudou, responde 409. Esse controle reduz escolhas em cartões antigos; não torna segura a ação autorizada nem elimina a possibilidade de a tela mudar entre a conferência e o envio da tecla.
+herdr and the optional notification command are invoked with argument lists, without a shell. The pane must have a valid format and belong to the spaces visible at the entry point used. Messages are limited to 8,000 characters and have control characters removed.
 
-O texto do chat é escapado antes de receber formatação simples e o terminal é inserido como texto. Segredos com padrões como `token`, `senha`, `password`, `secret`, `api_key` e `authorization` são mascarados nas mensagens e descrições de ferramentas da transcrição. O mascaramento não cobre todos os segredos, o terminal bruto ou o conteúdo de todos os logs.
+Allowed keys are `esc`, `enter`, `up`, `down`, and digits `1` through `9`. For numeric choices, the server rereads the dialog and compares its shortened SHA-256 fingerprint with the one sent by the browser. Enter also requires the fingerprint when a dialog exists. If the decision changed, it returns 409. This control reduces choices made on stale cards; it does not make an authorized action safe or eliminate the possibility of the screen changing between the check and the key submission.
 
-`ocultos_na_internet` filtra workspaces por ID, rótulo ou prefixo absoluto da pasta. A entrada pública também rejeita operações sobre panes ocultos, em vez de apenas removê-los da lista. Isso não impede um agente visível de acessar outros arquivos aos quais seu usuário Unix tem acesso.
+Chat text is escaped before simple formatting is applied, and the terminal is inserted as text. Secrets matching patterns such as `token`, `senha`, `password`, `secret`, `api_key`, and `authorization` are masked in transcript messages and tool descriptions. Masking does not cover all secrets, the raw terminal, or the contents of all logs.
+
+`ocultos_na_internet` filters workspaces by ID, label, or absolute folder prefix. The public entry point also rejects operations on hidden panes rather than merely removing them from the list. This does not prevent a visible agent from accessing other files available to its Unix user.
 
 ## Uploads
 
-O servidor aceita somente extensões da lista permitida: `.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.xyz`, `.log`, `.out`, `.inp`, `.gjf`, `.com`, `.mol`, `.mol2`, `.sdf`, `.pdb`, `.cif`, `.docx`, `.xlsx`, `.pptx` e `.zip`.
+The server accepts only extensions from the allowlist: `.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.xyz`, `.log`, `.out`, `.inp`, `.gjf`, `.com`, `.mol`, `.mol2`, `.sdf`, `.pdb`, `.cif`, `.docx`, `.xlsx`, `.pptx`, and `.zip`.
 
-O nome perde componentes de caminho e caracteres inadequados, tem comprimento limitado e recebe prefixo de data e sufixo aleatório. O upload é gravado em arquivo exclusivo `.part`, com modo `600`, e só renomeado após receber todo o corpo; falhas removem o parcial.
+Path components and unsuitable characters are removed from the name, its length is limited, and a date prefix and random suffix are added. The upload is written to an exclusive `.part` file with mode `600` and renamed only after the entire body is received; failures remove the partial file.
 
-A pasta de recebimento é criada com modo `700` dentro do workspace e com `.gitignore` contendo `*`. Se já existir, suas permissões e seu `.gitignore` não são corrigidos automaticamente. Mantenha `upload_pasta` como subpasta relativa controlada e confira pastas existentes.
+The upload folder is created with mode `700` inside the workspace and a `.gitignore` containing `*`. If it already exists, its permissions and `.gitignore` are not corrected automatically. Keep `upload_pasta` as a controlled relative subfolder and check existing folders.
 
-A extensão não valida o conteúdo. Não há antivírus, inspeção de arquivos compactados ou quota acumulada de disco. O agente pode interpretar arquivos recebidos e executar ações a partir deles.
+The extension does not validate the contents. There is no antivirus, archive inspection, or cumulative disk quota. The agent may interpret received files and act on them.
 
-## Auditoria e troca de chave
+## Auditing and key changes
 
-`auditoria.log` registra eventos como pedidos, aprovações, recusas, revogações, bloqueios, uploads e trocas de chave. **Acessos** mostra os eventos recentes. `recados.log` guarda recados, teclas e nomes de arquivos; não há log HTTP de acesso. Os logs de auditoria e recados giram ao ultrapassar aproximadamente 2 MB e são criados com modo `600`. Erros de execução vão para `portal.log`.
+`auditoria.log` records events such as requests, approvals, denials, revocations, blocks, uploads, and key changes. **Access** shows recent events. `recados.log` stores messages, keys, and file names; there is no HTTP access log. Audit and message logs rotate after exceeding approximately 2 MB and are created with mode `600`. Runtime errors go to `portal.log`.
 
-O diretório de configuração é criado com modo `700`; arquivos de chave e acessos escritos pelas rotinas privadas usam modo `600`. Permissões de diretórios preexistentes devem ser conferidas pelo operador. Os logs podem conter conteúdo sensível e não formam uma trilha inviolável.
+The configuration directory is created with mode `700`; key and access files written by the private routines use mode `600`. Permissions on preexisting directories must be checked by the operator. Logs may contain sensitive content and do not form a tamper-proof trail.
 
-**Trocar a chave** exige a chave atual novamente. A interface mantém os aparelhos aprovados, mas todos precisam da nova chave. A API permite revogar todas as aprovações na troca; também há revogação em **Acessos**. `scripts/portal-ctl chave` gera outra chave no arquivo, sem revogar aparelhos ou copiar para `copia_da_chave`. O servidor relê o arquivo de chave na autenticação, sem precisar reiniciar.
+**Change key** requires the current key again. The interface keeps approved devices, but all need the new key. The API allows revoking all approvals when changing the key; revocation is also available under **Access**. `scripts/portal-ctl chave` generates another key in the file without revoking devices or copying it to `copia_da_chave`. The server rereads the key file during authentication without needing a restart.
 
-Em caso de suspeita, desligue a publicação com `sudo tailscale funnel --https=443 off`, troque a chave, revogue os aparelhos suspeitos e revise os logs antes de republicar. **Sair** apaga a chave do navegador; **Esquecer este aparelho** revoga sua aprovação e apaga o cookie.
+If you suspect a problem, turn off the publication with `sudo tailscale funnel --https=443 off`, change the key, revoke suspicious devices, and review the logs before publishing again. **Sign out** deletes the key from the browser; **Forget this device** revokes its approval and deletes the cookie.
 
-## Fora do modelo
+## Outside the model
 
-- Usuário local com o mesmo usuário Unix do portal: pode ler ou alterar chave, arquivos, sessões e agentes. Não há defesa contra esse acesso.
-- Conta Tailscale comprometida: a rede, a publicação e sua administração deixam de ser confiáveis.
-- Navegador, máquina anfitriã, herdr ou agente comprometidos; extensões maliciosas; phishing; ações perigosas aprovadas pelo dono e instruções maliciosas nos dados lidos pelo agente.
+- A local user with the same Unix user as the portal: they can read or change the key, files, sessions, and agents. There is no defense against this access.
+- A compromised Tailscale account: the network, publication, and their administration are no longer trustworthy.
+- A compromised browser, host machine, herdr, or agent; malicious extensions; phishing; dangerous actions approved by the owner; and malicious instructions in data read by the agent.
 
-## Reportar problemas
+## Reporting issues
 
-Abra uma issue no repositório com uma descrição geral, versão ou revisão afetada e impacto esperado. **Não publique detalhes exploráveis**, prova de conceito funcional, chave, cookie, transcrições privadas ou dados pessoais. Combine com a manutenção, pela issue, uma forma reservada de fornecer os detalhes necessários.
+Open an issue in the repository with a general description, the affected version or revision, and the expected impact. **Do not publish exploitable details**, a working proof of concept, a key, a cookie, private transcripts, or personal data. Coordinate with the maintainers through the issue to arrange a private way to provide the necessary details.

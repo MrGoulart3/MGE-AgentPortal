@@ -1,117 +1,120 @@
+*[Versão em português](README.pt-BR.md)*
+
 # MGE-AgentPortal
 
-Portal web para conversar de qualquer navegador com agentes de IA, como Claude Code e Codex, que rodam no multiplexador **herdr** de uma máquina em casa. O servidor usa somente a biblioteca padrão do Python, sem dependências de pip.
+A web portal for chatting from any browser with AI agents, such as Claude Code and Codex, running in the **herdr** multiplexer on a home machine. The server uses only the Python standard library, with no pip dependencies.
 
-> **Segurança: quem controla o portal controla os agentes e, por eles, a máquina.** Proteja a chave, aprove apenas aparelhos conhecidos e leia [SECURITY.md](SECURITY.md) antes de publicar.
+> **Security: whoever controls the portal controls the agents and, through them, the machine.** Protect the key, approve only known devices, and read [SECURITY.md](SECURITY.md) before publishing.
 
-## Recursos
+## Features
 
-- Chat com a transcrição do Claude Code e terminal ao vivo para Claude Code e Codex.
-- Cartão para responder decisões, incluindo permissões e perguntas. A impressão digital identifica a decisão exibida e impede responder a um cartão que mudou.
-- Envio de arquivos por seleção, arrastar e soltar ou colar imagens; os caminhos dos arquivos recebidos seguem no recado ao agente.
-- Cartões de limites de uso: Claude 5 h, Codex 5 h e semana. Cada cartão pode ser fechado e há um botão para restaurar os cartões.
-- Filtro Claude/Codex/Todos, histórico do terminal, ajustes de fonte e interface para celular.
-- Aprovação e revogação de aparelhos, auditoria e troca de chave em **Acessos**.
+- Chat with Claude Code transcripts and a live terminal for Claude Code and Codex.
+- A card for answering decisions, including permissions and questions. A fingerprint identifies the displayed decision and prevents answering a card that has changed.
+- File uploads by selection, drag and drop, or pasting images; the paths of received files are included in the message to the agent.
+- Usage-limit cards: Claude 5 h, Codex 5 h, and weekly. Each card can be dismissed, and a button restores the cards.
+- Claude/Codex/All filter, terminal history, font adjustments, and a mobile interface.
+- Bilingual interface (Portuguese/English): defaults to the browser language; the **PT | EN** selector in the header saves the preference in this browser.
+- Device approval and revocation, audit events, and key changes under **Access**.
 
-## Imagens
+## Images
 
-Conversa e limites de uso:
+Conversation and usage limits:
 
-![Chat com a transcrição e cartões de uso](docs/img/conversa.png)
+![Chat with transcripts and usage cards](docs/img/en/conversa.png)
 
-Decisão do agente:
+Agent decision:
 
-![Cartão de decisão junto ao terminal](docs/img/decisao.png)
+![Decision card alongside the terminal](docs/img/en/decisao.png)
 
-Gerenciamento de acessos:
+Access management:
 
-![Pedidos, aparelhos aprovados e auditoria](docs/img/acessos.png)
+![Requests, approved devices, and audit events](docs/img/en/acessos.png)
 
-Aprovação em duas etapas:
+Two-step approval:
 
-![Código exibido no aparelho que pede acesso](docs/img/aprovacao.png)
+![Code displayed on the device requesting access](docs/img/en/aprovacao.png)
 
-Uso no celular:
+Mobile use:
 
-![Conversa no navegador do celular](docs/img/celular.png)
+![Conversation in a mobile browser](docs/img/en/celular.png)
 
-As imagens são geradas com o cenário fictício de `tests/demo.py`.
+The images are generated using the fictional scenario in `tests/demo.py`.
 
-## Como funciona
+## How it works
 
-O navegador consulta a API do portal, que chama o herdr para listar agentes, ler o terminal, enviar recados e pressionar teclas permitidas. Para o chat do Claude Code, o portal lê as transcrições locais de suas sessões.
+The browser queries the portal API, which calls herdr to list agents, read the terminal, send messages, and press allowed keys. For Claude Code chat, the portal reads the local transcripts of its sessions.
 
-Há duas portas com regras diferentes:
+There are two ports with different rules:
 
-| Entrada | Autenticação | Exposição |
+| Entry point | Authentication | Exposure |
 | --- | --- | --- |
-| Privada, normalmente 8787 | Só chave | Loopback ou endereço privado configurado, por exemplo da rede Tailscale |
-| Pública, normalmente 8788 | Chave + aparelho aprovado | Escuta somente em `127.0.0.1`; o Tailscale Funnel publica o acesso por HTTPS |
+| Private, usually 8787 | Key only | Loopback or a configured private address, such as one on the Tailscale network |
+| Public, usually 8788 | Key + approved device | Listens only on `127.0.0.1`; Tailscale Funnel publishes access over HTTPS |
 
-Na entrada pública, um aparelho novo informa seu nome e recebe um código de **6 dígitos**. O dono digita esse código em **Acessos**, num aparelho confiável. O pedido vale 15 minutos e é recusado após três códigos errados. Para aprovar o primeiro aparelho, use a entrada privada com a chave.
+At the public entry point, a new device provides its name and receives a **six-digit** code. The owner enters this code under **Access** on a trusted device. The request is valid for 15 minutes and is denied after three incorrect codes. To approve the first device, use the private entry point with the key.
 
-## Requisitos
+## Requirements
 
-- Linux, Python 3.10 ou superior e Bash. O controlador usa `flock`, `nohup`, `setsid` e `/proc`.
-- herdr instalado e agentes Claude Code ou Codex já abertos nele, sob o usuário Unix que executa o portal.
-- Tailscale instalado, conectado e autorizado a usar Funnel para o acesso pela internet.
-- Navegador moderno com JavaScript e cookies habilitados.
-- Firefox no `PATH` apenas para regenerar as imagens.
+- Linux, Python 3.10 or later, and Bash. The controller uses `flock`, `nohup`, `setsid`, and `/proc`.
+- herdr installed, with Claude Code or Codex agents already open in it, under the Unix user running the portal.
+- Tailscale installed, connected, and authorized to use Funnel for internet access.
+- A modern browser with JavaScript and cookies enabled.
+- Firefox on the `PATH` only for regenerating the images.
 
-O portal não instala os agentes nem os inicia. Para funcionar como previsto, precisa ter acesso aos dados locais das sessões desse usuário.
+The portal neither installs nor starts the agents. To work as intended, it needs access to that user's local session data.
 
-## Instalação
+## Installation
 
-Execute na raiz deste repositório:
+Run from the root of this repository:
 
-1. Gere a chave:
+1. Generate the key:
 
    ```bash
    scripts/portal-ctl chave
    ```
 
-   Ela fica em `~/.config/mge-agentportal/token`. Guarde-a como uma senha; não a inclua em URLs, commits ou capturas de tela.
+   It is stored in `~/.config/mge-agentportal/token`. Treat it as a password; do not include it in URLs, commits, or screenshots.
 
-2. Copie a configuração:
+2. Copy the configuration:
 
    ```bash
    cp config.example.json ~/.config/mge-agentportal/config.json
    ```
 
-   Edite a cópia antes de iniciar. Ajuste `herdr` para o executável instalado, use `dono: "Ana"` como exemplo e remova os caminhos fictícios que não se aplicam. Deixe `aviso_cmd` vazio se não usar notificações. Para começar localmente, use `enderecos_privados: [["127.0.0.1", 8787]]`. Se precisar da entrada privada pela rede Tailscale, adicione o endereço dessa máquina à configuração, sem abrir a porta privada na internet.
+   Edit the copy before starting. Set `herdr` to the installed executable, use `dono: "Ana"` as an example, and remove fictional paths that do not apply. Leave `aviso_cmd` empty if you do not use notifications. To start locally, use `enderecos_privados: [["127.0.0.1", 8787]]`. If you need the private entry point over the Tailscale network, add this machine's address to the configuration without opening the private port to the internet.
 
-   Preencha `hosts_permitidos` com os Hosts efetivamente usados: `127.0.0.1:8787`, `localhost:8787`, `127.0.0.1:8788`, o Host privado se houver e `minha-maquina.tailnet-exemplo.ts.net` substituído pelo nome da sua máquina. A lista vazia desativa a conferência de Host.
+   Fill `hosts_permitidos` with the Hosts actually used: `127.0.0.1:8787`, `localhost:8787`, `127.0.0.1:8788`, the private Host if applicable, and `minha-maquina.tailnet-exemplo.ts.net` replaced with your machine's name. An empty list disables Host checking.
 
-3. Inicie e confira o serviço:
+3. Start and check the service:
 
    ```bash
    scripts/portal-ctl start
    scripts/portal-ctl status
    ```
 
-   Na própria máquina, abra `http://127.0.0.1:8787/spaces` e entre com a chave. Confira se os agentes aparecem. O log de execução fica em `~/.config/mge-agentportal/portal.log`.
+   On the machine itself, open `http://127.0.0.1:8787/spaces` and sign in with the key. Check that the agents appear. The runtime log is stored in `~/.config/mge-agentportal/portal.log`.
 
-4. Depois do checklist de [PROTOCOLO.md](PROTOCOLO.md), publique somente a porta pública:
+4. After completing the checklist in [PROTOCOL.md](PROTOCOL.md), publish only the public port:
 
    ```bash
    sudo tailscale funnel --bg 8788
    ```
 
-   Use a URL HTTPS informada pelo comando; neste documento, o exemplo é `https://minha-maquina.tailnet-exemplo.ts.net/spaces`.
+   Use the HTTPS URL reported by the command; in this document, the example is `https://minha-maquina.tailnet-exemplo.ts.net/spaces`.
 
-5. Aprove o primeiro aparelho. Nele, abra a URL pública, entre com a chave, informe um nome e peça acesso. Na sessão privada aberta na máquina, vá a **Acessos**, encontre o pedido e digite o código mostrado pelo aparelho novo. Após a aprovação, ele entra automaticamente. Os próximos aparelhos podem ser aprovados pela sessão privada ou por um aparelho já aprovado.
+5. Approve the first device. On it, open the public URL, sign in with the key, enter a name, and request access. In the private session open on the machine, go to **Access**, find the request, and enter the code shown by the new device. Once approved, it signs in automatically. Subsequent devices can be approved from the private session or an already approved device.
 
-## Uso no dia a dia
+## Everyday use
 
-Escolha o filtro e o space. No Claude Code, use **Conversa** para acompanhar mensagens e ações; use a visão ao vivo para conferir o terminal. O Codex usa a visão de terminal. O histórico do terminal pode depender de o agente estar parado.
+Choose the filter and the space. For Claude Code, use **Chat** to follow messages and actions; use the live view to check the terminal. Codex uses the terminal view. Terminal history may depend on the agent being idle.
 
-Digite um recado e envie com Enter; Shift+Enter insere uma nova linha. Anexe arquivos antes de enviar. Eles ficam em `_recebidos_portal` dentro da pasta do space, e o agente recebe seus caminhos. Se um envio demorar e falhar, confira a conversa antes de reenviar.
+Type a message and send it with Enter; Shift+Enter inserts a new line. Attach files before sending. They are stored in `_recebidos_portal` inside the space's folder, and the agent receives their paths. If sending takes a long time and fails, check the conversation before trying again.
 
-Quando aparecer um cartão de decisão, leia a pergunta e as opções antes de responder. Se a decisão mudou, o servidor recusa a escolha e pede uma nova conferência. Fechar um cartão de uso só o oculta neste navegador; **restaurar cartões** traz os cartões de volta.
+When a decision card appears, read the question and options before answering. If the decision has changed, the server rejects the choice and asks you to check again. Dismissing a usage card only hides it in this browser; **restore cards** brings the cards back.
 
-Em **Acessos**, aprove pedidos conhecidos, recuse os demais e revogue aparelhos que não usa. **Sair** remove a chave salva; **Esquecer este aparelho** também revoga o acesso desse aparelho. **Trocar a chave** exige digitar a chave atual e mostra a nova; os demais aparelhos precisarão dela, mas suas aprovações são mantidas pela interface.
+Under **Access**, approve known requests, deny the others, and revoke devices you no longer use. **Sign out** removes the saved key; **Forget this device** also revokes this device's access. **Change key** requires entering the current key and displays the new one; other devices will need it, but the interface keeps their approvals.
 
-Para controlar o processo:
+To control the process:
 
 ```bash
 scripts/portal-ctl status
@@ -119,67 +122,63 @@ scripts/portal-ctl stop
 scripts/portal-ctl start
 ```
 
-Parar o portal não remove a publicação do Funnel. Para desligá-la:
+Stopping the portal does not remove the Funnel publication. To turn it off:
 
 ```bash
 sudo tailscale funnel --https=443 off
 ```
 
-## Configuração
+## Configuration
 
-O arquivo é `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` permite escolher outro diretório de configuração, chave, acessos e logs; use o mesmo valor no controlador e no servidor. Reinicie o processo após editar a configuração. Caminhos no JSON devem ser absolutos, sem `~`.
+The file is `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` lets you choose another directory for configuration, the key, access records, and logs; use the same value in the controller and the server. Restart the process after editing the configuration. Paths in JSON must be absolute, without `~`.
 
-| Chave | Padrão | Função |
+| Key | Default | Purpose |
 | --- | --- | --- |
-| `dono` | `"dono"` | Nome no prefixo dos recados; o exemplo usa `"Ana"`. |
-| `herdr` | Executável no `PATH` ou `~/.local/bin/herdr` | Caminho do herdr. |
-| `enderecos_privados` | `[["127.0.0.1", 8787]]` | Pares de endereço e porta que exigem só chave. Use portas diferentes de `porta_publica`. |
-| `porta_publica` | `8788` | Porta local publicada pelo Funnel; sempre em `127.0.0.1`. |
-| `hosts_permitidos` | `[]` | Valores exatos do cabeçalho Host aceitos; lista vazia não confere Host. |
-| `ocultos_na_internet` | `[]` | Workspaces ocultos na entrada pública, por ID, rótulo ou prefixo absoluto da pasta. |
-| `aviso_cmd` | `[]` | Lista de comando e argumentos para notificações; recebe título, mensagem e prioridade ao final. |
-| `copia_da_chave` | `""` | Arquivo extra para copiar a chave ao trocá-la pela API; vazio desativa. O comando `portal-ctl chave` não faz essa cópia. |
-| `dias_aparelho` | `30` | Validade da aprovação e do cookie de aparelho. |
-| `upload_mb` | `25` | Limite de tamanho por arquivo no servidor, em MiB. A interface limita a 25 MiB. |
-| `upload_pasta` | `"_recebidos_portal"` | Subpasta de recebimento dentro da pasta do space; mantenha um nome simples e relativo. |
-| `janela_contexto` | `1000000` | Denominador do percentual de contexto do Claude Code. |
-| `cache_uso` | `~/.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json` | Cache opcional para o limite de uso do Claude. |
-| `max_conexoes_privada` | `24` | Vagas de conexão simultânea por listener privado. |
-| `max_conexoes_publica` | `16` | Vagas de conexão simultânea na porta pública. |
+| `dono` | `"dono"` | Name in the message prefix; the example uses `"Ana"`. |
+| `herdr` | Executable on the `PATH` or `~/.local/bin/herdr` | Path to herdr. |
+| `enderecos_privados` | `[["127.0.0.1", 8787]]` | Address and port pairs requiring only the key. Use ports different from `porta_publica`. |
+| `porta_publica` | `8788` | Local port published by Funnel; always on `127.0.0.1`. |
+| `hosts_permitidos` | `[]` | Exact accepted Host header values; an empty list does not check Host. |
+| `ocultos_na_internet` | `[]` | Workspaces hidden at the public entry point, by ID, label, or absolute folder prefix. |
+| `aviso_cmd` | `[]` | List of command and arguments for notifications; title, message, and priority are appended. |
+| `copia_da_chave` | `""` | Additional file to copy the key to when changing it through the API; empty disables this. The `portal-ctl chave` command does not make this copy. |
+| `dias_aparelho` | `30` | Validity of device approval and the device cookie. |
+| `upload_mb` | `25` | Server size limit per file, in MiB. The interface limits uploads to 25 MiB. |
+| `upload_pasta` | `"_recebidos_portal"` | Upload subfolder inside the space's folder; keep it a simple, relative name. |
+| `janela_contexto` | `1000000` | Denominator for the Claude Code context percentage. |
+| `cache_uso` | `~/.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json` | Optional cache for the Claude usage limit. |
+| `max_conexoes_privada` | `24` | Simultaneous connection slots per private listener. |
+| `max_conexoes_publica` | `16` | Simultaneous connection slots on the public port. |
 
-Os caminhos com `~` na tabela descrevem padrões calculados pelo programa; ao fornecê-los no JSON, escreva o caminho absoluto. As três últimas opções opcionais de cache e conexões não constam no arquivo de exemplo.
+Paths containing `~` in the table describe defaults calculated by the program; when supplying them in JSON, write the absolute path. The last three optional cache and connection settings are not included in the example file.
 
-## Testes
+## Tests
 
-Na raiz do repositório:
+From the repository root:
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-Os testes usam `tests/herdr_falso.py`, HOME temporário, configuração isolada, transcrições fictícias e portas locais. Não precisam de herdr real, agentes ou Tailscale. Conferem autenticação, aprovação com código, cookies e cabeçalhos, ocultação de workspaces, conversa, limites, decisões com impressão digital, recados e uploads, incluindo envio interrompido.
+The tests use `tests/herdr_falso.py`, a temporary HOME, isolated configuration, fictional transcripts, and local ports. They do not need real herdr, agents, or Tailscale. They check authentication, code-based approval, cookies and headers, workspace hiding, conversation, limits, fingerprinted decisions, messages, and uploads, including interrupted transfers.
 
-## Regenerar as imagens
+## Regenerating the images
 
-Com Firefox disponível no `PATH`, execute:
+With Firefox available on the `PATH`, run:
 
 ```bash
 python3 scripts/gerar_imagens.py
 ```
 
-O script sobe um servidor com herdr falso, coleta respostas da API e captura a interface com Firefox headless. Recria os cinco PNGs em `docs/img`, sem precisar de contas reais dos agentes.
+The script starts a server with fake herdr, collects API responses, and captures the interface using headless Firefox. It recreates the five PNGs in `docs/img`, without requiring real agent accounts.
 
-## Limitações
+## Limitations
 
-- A interface está em português e depende dos formatos de tela e dados produzidos pelos agentes e pelo herdr.
-- O chat e o status de contexto são lidos das transcrições do Claude Code. O Codex tem terminal e limites de uso, sem chat por transcrição nesta implementação.
-- Os limites do Claude vêm do cache do oh-my-claudecode, opcional. Os do Codex vêm dos registros locais recentes. Os cartões podem faltar ou mostrar dados desatualizados; não são consultas diretas às contas.
-- O contexto é estimado a partir do uso registrado; o percentual usa `janela_contexto`. A legenda da interface ainda menciona uma janela de 1 milhão de tokens.
-- A atualização ocorre por consultas periódicas; o terminal não é uma sessão interativa completa. As teclas disponíveis são restritas.
-- O mascaramento de segredos é heurístico e não substitui revisar o que aparece na tela. Uploads não passam por análise de malware.
+- The interface is available in Portuguese and English and depends on the screen and data formats produced by the agents and herdr.
+- Chat and context status are read from Claude Code transcripts. Codex has a terminal and usage limits, without transcript-based chat in this implementation.
+- Claude limits come from the optional oh-my-claudecode cache. Codex limits come from recent local records. Cards may be missing or show outdated data; they do not query accounts directly.
+- Context is estimated from recorded usage; the percentage uses `janela_contexto`. The interface caption still refers to a window of 1 million tokens.
+- Updates use periodic polling; the terminal is not a full interactive session. Available keys are restricted.
+- Secret masking is heuristic and does not replace reviewing what appears on screen. Uploads are not scanned for malware.
 
-Licença: [MIT](LICENSE).
-
-## English summary
-
-MGE-AgentPortal is a Python standard-library web portal for Claude Code and Codex agents running in herdr on a home machine. It provides Claude transcript chat, live terminal views, fingerprint-checked decisions, file uploads and dismissible usage-limit cards. Private access requires a key; public access through Tailscale Funnel also requires device approval with a six-digit code entered on a trusted device. Portal access grants control over the agents and, through them, the machine.
+License: [MIT](LICENSE).

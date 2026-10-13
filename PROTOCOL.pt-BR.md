@@ -1,6 +1,8 @@
+*[English version](PROTOCOL.md)*
+
 # Protocolo de reprodução
 
-Este roteiro reproduz a ideia em outra máquina: agentes locais no herdr, um portal mínimo, entrada privada para administração inicial e entrada pública com aprovação de aparelho. Para instalar esta implementação, siga também o [README.md](README.md); os limites de confiança estão em [SECURITY.md](SECURITY.md).
+Este roteiro reproduz a ideia em outra máquina: agentes locais no herdr, um portal mínimo, entrada privada para administração inicial e entrada pública com aprovação de aparelho. Para instalar esta implementação, siga também o [README.pt-BR.md](README.pt-BR.md); os limites de confiança estão em [SECURITY.pt-BR.md](SECURITY.pt-BR.md).
 
 ## 1. Definir o acesso e a confiança
 

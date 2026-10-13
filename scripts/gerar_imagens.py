@@ -3,10 +3,12 @@
 
 Sobe o servidor com o herdr falso, busca as respostas reais da API e fotografa a página com o Firefox headless
 (a página roda com essas respostas gravadas, porque o Firefox headless não guarda a chave no navegador).
-Uso: python3 scripts/gerar_imagens.py      (precisa do firefox no PATH)
+Uso: python3 scripts/gerar_imagens.py            (português, docs/img/)
+     IDIOMA=en python3 scripts/gerar_imagens.py  (inglês, docs/img/en/; precisa do firefox no PATH)
 """
 import http.client
 import json
+import os
 import re
 import shutil
 import socket
@@ -20,7 +22,8 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / 'tests'))
 import demo  # noqa: E402
 
-SAIDA = RAIZ / 'docs/img'
+IDIOMA = os.environ.get('IDIOMA', 'pt')   # pt ou en
+SAIDA = RAIZ / ('docs/img' if IDIOMA == 'pt' else f'docs/img/{IDIOMA}')
 
 
 def main() -> None:
@@ -71,7 +74,7 @@ def main() -> None:
         shutil.copy(RAIZ / 'portal/web/spaces.js', trabalho / 'spaces.js')
         SAIDA.mkdir(parents=True, exist_ok=True)
         for nome, w, h, cena in cenas:
-            js = ["localStorage.clear()"]
+            js = ["localStorage.clear()", f"localStorage.setItem('portal_idioma','{IDIOMA}')"]
             if cena.get('login'):
                 js.append("localStorage.setItem('portal_chave','x')")
                 resp = "u.includes('/api/acesso/estado')?{estado:'pendente'}:u.includes('/api/acesso/pedir')?{codigo:%s}:null" % json.dumps(cena['codigo'])
