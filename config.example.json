@@ -1,0 +1,14 @@
+{
+  "dono": "Ana",
+  "herdr": "/home/ana/.local/bin/herdr",
+  "enderecos_privados": [["127.0.0.1", 8787], ["100.64.0.10", 8787]],
+  "porta_publica": 8788,
+  "hosts_permitidos": ["127.0.0.1:8787", "localhost:8787", "100.64.0.10:8787", "127.0.0.1:8788", "minha-maquina.tailnet-exemplo.ts.net"],
+  "ocultos_na_internet": ["Projeto de outra pessoa", "/home/ana/projetos/privado"],
+  "aviso_cmd": ["/home/ana/bin/avisar"],
+  "copia_da_chave": "",
+  "dias_aparelho": 30,
+  "upload_mb": 25,
+  "upload_pasta": "_recebidos_portal",
+  "janela_contexto": 1000000
+}

@@ -1,0 +1,84 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><title>MGE-AgentPortal</title>
+<style>
+:root{color-scheme:light dark;--bg:#f1f4f8;--card:#fff;--text:#142033;--muted:#637185;--line:#dce4ed;--accent:#3579e8;--term:#0f1620;--termtext:#d8e2ee;--ok:#1f8a46;--warn:#b07800;--bad:#d13b3b;--warnbg:#fff4df}
+@media(prefers-color-scheme:dark){:root{--bg:#101722;--card:#192332;--text:#e4ecf7;--muted:#9eacc0;--line:#303e52;--accent:#6aa3ff;--term:#0a0f16;--warnbg:#3a2c12}}
+[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,sans-serif}
+main{margin:auto;padding:16px}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:24px;margin:0}h2{font-size:17px;margin:0 0 8px}a{color:var(--accent)}small,.muted{color:var(--muted)}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;margin-top:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+.space{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;background:none;color:var(--text);border:0;border-bottom:1px solid var(--line);padding:10px 4px;cursor:pointer;font:inherit}
+.space:last-child{border:0}.space.sel{background:color-mix(in srgb,var(--accent) 14%,transparent);border-radius:8px}
+.space small{display:block}.dot{flex:none;font-size:12px;padding:3px 7px;border-radius:6px;background:var(--line)}
+.s-working{background:#d6e6ff;color:#173f80}.s-done,.s-idle{background:#d2ecd8;color:#174b29}.s-blocked{background:#ffe2bb;color:#714000}
+pre#tela{background:var(--term);color:var(--termtext);border-radius:10px;padding:12px;height:52vh;overflow:auto;font:12.5px/1.35 ui-monospace,Menlo,Consolas,monospace;white-space:pre;margin:10px 0 0}pre#tela.wrap{white-space:pre-wrap;word-break:break-word}
+textarea{width:100%;min-height:80px;resize:vertical;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+button.b,input{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 12px}
+button.b{cursor:pointer}button.main{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}button.b.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button.perigo{border-color:var(--bad);color:var(--bad)}
+#chat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;margin-top:10px;display:flex;flex-direction:column;gap:10px;height:52vh}
+#chat .m{max-width:min(900px,92%);padding:10px 14px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}
+#chat .u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+#chat .c{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px}
+#chat .tl{align-self:flex-start;font-size:12px;color:var(--muted);padding:0 6px;white-space:pre-wrap}
+#chat .hr{font-size:11px;color:var(--muted);margin-top:4px;opacity:.8}#chat .u .hr{color:rgba(255,255,255,.8)}
+#chat code{font:12.5px ui-monospace,Menlo,Consolas,monospace;background:color-mix(in srgb,var(--muted) 18%,transparent);padding:1px 4px;border-radius:4px}
+#chat pre{background:var(--term);color:var(--termtext);padding:10px;border-radius:8px;overflow:auto;white-space:pre;font:12.5px ui-monospace,Menlo,Consolas,monospace;margin:6px 0}
+#chat .u code{background:rgba(255,255,255,.2)}#chat .work{align-self:flex-start;font-size:13px;color:var(--muted)}
+#dlg{margin-top:10px;border:2px solid var(--warn);background:var(--warnbg);border-radius:12px;padding:12px 14px}
+#dlg pre{white-space:pre-wrap;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;margin:6px 0 10px;max-height:30vh;overflow:auto}
+#dlg .ops{display:flex;flex-direction:column;gap:6px}#dlg .ops button{text-align:left}
+#omc{margin:8px 0 0;display:flex;flex-wrap:wrap;gap:8px}#omc .st{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px;min-width:0}#omc .st b{font-weight:600}#omc .st{position:relative;padding-right:26px}#omc .fechar{position:absolute;top:2px;right:4px;border:0;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 4px;opacity:.55}#omc .fechar:hover{opacity:1;color:var(--bad)}#omc .restaurar{font-size:12px;padding:4px 10px;align-self:center}#omc .st small{display:block;color:var(--muted);font-size:11px}#omc .mt{height:5px;border-radius:3px;background:var(--line);margin-top:4px;overflow:hidden;width:120px}#omc .mt i{display:block;height:100%;background:var(--accent)}#omc .mt i.w{background:#c98a00}#omc .mt i.h{background:#d13b3b}
+#sec.full{position:fixed;inset:0;z-index:9;border-radius:0;display:flex;flex-direction:column;height:100dvh;overflow:auto;padding-top:calc(14px + env(safe-area-inset-top,0px));padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+#sec.full #chat,#sec.full pre#tela{flex:1 1 auto;height:auto!important;min-height:30vh}#sec.full .hist{display:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}.teclas button{min-width:44px}
+.anexos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.anexo{font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 10px}.anexo button{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;padding:0 0 0 6px}
+#entrada.arrastando textarea{outline:3px dashed var(--accent)}
+.hist{font-size:13px;max-height:160px;overflow:auto;margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.hist div{padding:3px 0}.ac{padding:8px 0;border-bottom:1px solid var(--line)}.ac .row{margin-top:6px}.ac input{width:9em}
+.pend{background:#ffe2bb;color:#714000;border-radius:6px;padding:0 6px}.err{color:var(--bad)}.okmsg{color:var(--ok)}
+.aud{font-size:12px;color:var(--muted);max-height:220px;overflow:auto}.aud div{padding:2px 0;border-bottom:1px dotted var(--line)}
+.novachave{font:16px ui-monospace,Menlo,Consolas,monospace;background:var(--bg);padding:8px;border-radius:8px;user-select:all;word-break:break-all}
+#login{max-width:460px;margin:40px auto}
+#lista select{display:none;width:100%;padding:10px;font:inherit;border-radius:8px;background:var(--card);color:var(--text);border:1px solid var(--line)}
+@media(max-width:760px){.layout{grid-template-columns:1fr}#lista .space{display:none}#lista select{display:block}pre#tela,#chat{height:46vh}main{padding:12px}}
+</style>
+<main>
+<header><div><h1>Agent Portal</h1><small>Conversa com os agentes de IA do herdr</small></div><small id="status"></small></header>
+
+<section id="login" class="card" hidden>
+<h2>Chave de acesso</h2>
+<p class="muted" id="ondefica">Digite a chave do portal. Pela internet, cada aparelho novo também precisa da aprovação do dono.</p>
+<form id="lf" class="row"><input id="chave" type="password" autocomplete="current-password" placeholder="chave" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1"><button class="b" type="button" id="vchave">Ver</button><button class="b main">Entrar</button></form>
+<label class="muted" style="font-size:13px;display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="lembrar" checked style="padding:0;width:auto;margin-top:2px"> lembrar a chave neste navegador (desmarque em computador de outra pessoa)</label>
+<p id="lerr" class="err"></p>
+<div id="aprov" hidden><p><strong>Este aparelho precisa da sua aprovação.</strong></p>
+<div class="row"><input id="apnome" placeholder="nome deste aparelho (ex.: PC do serviço)" maxlength="40" style="flex:1"><button class="b main" id="appedir" type="button">Pedir aprovação</button></div>
+<p id="apinfo" class="muted"></p></div>
+</section>
+
+<div id="app" class="layout" hidden>
+<aside id="lista" class="card"><div class="row" id="tipos" style="margin:0 0 8px"><button class="b" type="button" data-tipo="claude">Claude</button><button class="b" type="button" data-tipo="codex">Codex</button><button class="b" type="button" data-tipo="todos">Todos</button></div><select id="sel" aria-label="Escolher space"></select><div id="spaces"></div>
+<div class="row"><button class="b" id="vacessos" type="button">Acessos <span id="npend"></span></button><button class="b" id="sair" type="button">Sair</button></div>
+<div id="acessos" hidden style="margin-top:10px;font-size:13px"></div></aside>
+<section class="card" id="sec">
+<div class="row" style="margin-top:0;justify-content:space-between"><strong id="nome">Escolha um space</strong><small id="estado" class="muted"></small></div>
+<div class="row" id="ctl" style="margin-top:8px"><small class="muted">Tela:</small>
+<button class="b" data-modo="conversa" type="button">💬 Conversa</button><button class="b" data-modo="vivo" type="button">● Terminal ao vivo</button><button class="b" data-modo="historico" type="button">Histórico</button>
+<small class="muted" style="margin-left:6px">Tamanho:</small><button class="b" id="ajustar" type="button">↔ Ajustar</button><button class="b" id="quebrar" type="button">Quebrar linhas</button><button class="b" data-z="-1" type="button">A−</button><button class="b" data-z="1" type="button">A+</button>
+<button class="b" data-h="-1" type="button">↕−</button><button class="b" data-h="1" type="button">↕+</button><button class="b" id="cheia" type="button">⛶ Tela cheia</button></div>
+<pre id="tela" hidden></pre><div id="chat" hidden></div>
+<div id="dlg" hidden><strong>⚠ O space está pedindo uma decisão</strong><pre id="dlgq"></pre><div class="ops" id="dlgops"></div><div class="row"><button class="b" id="dlgesc" type="button">Cancelar (Esc)</button><small class="muted">Para responder com texto livre: cancele e mande um recado.</small></div></div>
+<div id="omc" hidden></div>
+<div class="row teclas"><small class="muted">Teclas:</small>
+<button class="b" data-k="1" type="button">1</button><button class="b" data-k="2" type="button">2</button><button class="b" data-k="3" type="button">3</button>
+<button class="b" data-k="up" type="button">↑</button><button class="b" data-k="down" type="button">↓</button><button class="b" data-k="enter" type="button">Enter</button><button class="b" data-k="esc" type="button">Esc (interromper)</button></div>
+<form id="ef"><div id="entrada"><textarea id="texto" placeholder="Recado para este space… (Enter envia · Shift+Enter pula linha · arraste ou cole arquivos)" style="margin-top:10px"></textarea></div>
+<div class="anexos" id="anexos"></div>
+<div class="row"><button class="b main" id="enviar">Enviar</button><button class="b" type="button" id="clip">📎 Anexar</button><input type="file" id="arq" multiple hidden><small id="msg"></small></div></form>
+<div class="hist" id="hist"></div>
+</section>
+</div>
+</main>
+<script src="/spaces.js"></script>
+</html>

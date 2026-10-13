@@ -1,0 +1,221 @@
+"""Testes ponta a ponta do MGE-AgentPortal com herdr falso (não precisa de herdr, Claude Code nem Tailscale).
+
+Rodar:  python3 -m unittest discover -s tests -v
+"""
+import http.client
+import json
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+AQUI = Path(__file__).resolve().parent
+sys.path.insert(0, str(AQUI))
+import demo  # noqa: E402
+
+RAIZ = AQUI.parent
+
+
+class PortalTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.base = Path(tempfile.mkdtemp(prefix='_tmp_portal_', dir=AQUI))
+        cls.d = demo.montar(cls.base)
+        cls.proc = subprocess.Popen([sys.executable, '-u', str(RAIZ / 'portal/server.py')], env=cls.d['env'],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        for _ in range(100):
+            try:
+                socket.create_connection(('127.0.0.1', cls.d['pub']), timeout=0.2).close()
+                socket.create_connection(('127.0.0.1', cls.d['priv']), timeout=0.2).close()
+                break
+            except OSError:
+                time.sleep(0.1)
+        cls.K = {'X-Token': cls.d['token']}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.proc.terminate()
+        cls.proc.wait(5)
+        shutil.rmtree(cls.base, ignore_errors=True)
+
+    def req(self, publica, metodo, caminho, corpo=None, h=None):
+        porta = self.d['pub'] if publica else self.d['priv']
+        c = http.client.HTTPConnection('127.0.0.1', porta, timeout=20)
+        hs = {'Host': f'127.0.0.1:{porta}', **(h or {})}
+        if isinstance(corpo, dict):
+            corpo = json.dumps(corpo).encode()
+            hs.setdefault('Content-Type', 'application/json')
+        c.request(metodo, caminho, body=corpo, headers=hs)
+        r = c.getresponse()
+        b = r.read()
+        try:
+            d = json.loads(b)
+        except ValueError:
+            d = {}
+        return r.status, d, r
+
+    def aprovar(self, nome, cliente):
+        """Pede acesso pela porta pública e aprova pela privada digitando o código. Devolve o cookie."""
+        s, d, r = self.req(True, 'POST', '/api/acesso/pedir', {'nome': nome}, {**self.K, 'X-Forwarded-For': cliente})
+        self.assertEqual(s, 200, d)
+        pdev = re.search(r'pdev=([^;]+)', r.getheader('Set-Cookie')).group(1)
+        s, lst, _ = self.req(False, 'GET', '/api/acesso/lista', h=self.K)
+        pid = next(p['id'] for p in lst['pendentes'] if p['nome'] == nome)
+        s, _, _ = self.req(False, 'POST', '/api/acesso/decidir', {'id': pid, 'aprovar': True, 'codigo': d['codigo']}, self.K)
+        self.assertEqual(s, 200)
+        return pdev
+
+    # ---- cabeçalhos e rotas
+    def test_cabecalhos_de_seguranca(self):
+        s, _, r = self.req(False, 'GET', '/spaces')
+        self.assertEqual(s, 200)
+        self.assertIn("script-src 'self'", r.getheader('Content-Security-Policy'))
+        self.assertIn("frame-ancestors 'none'", r.getheader('Content-Security-Policy'))
+        self.assertEqual(r.getheader('X-Frame-Options'), 'DENY')
+        self.assertEqual(r.getheader('Referrer-Policy'), 'no-referrer')
+        s, _, r = self.req(True, 'GET', '/spaces')
+        self.assertIn('max-age', r.getheader('Strict-Transport-Security') or '')
+
+    def test_host_estranho_e_rota_parecida(self):
+        self.assertEqual(self.req(False, 'GET', '/spaces', h={'Host': 'evil.example'})[0], 421)
+        self.assertEqual(self.req(False, 'GET', '/api/spacesX', h=self.K)[0], 404)
+
+    # ---- chave
+    def test_sem_chave_e_chave_errada(self):
+        self.assertEqual(self.req(False, 'GET', '/api/spaces')[0], 401)
+        self.assertEqual(self.req(False, 'GET', '/api/spaces', h={'X-Token': 'errada'})[0], 401)
+
+    def test_limite_por_cliente_nunca_bloqueia_a_chave_certa(self):
+        h = {'X-Token': 'x', 'X-Forwarded-For': '203.0.113.50'}
+        for _ in range(16):
+            self.req(True, 'GET', '/api/spaces', h=h)
+        self.assertEqual(self.req(True, 'GET', '/api/spaces', h=h)[0], 429)
+        forjado = {'X-Token': 'x', 'X-Forwarded-For': '10.1.1.1, 203.0.113.50'}   # o IP real vem por último
+        self.assertEqual(self.req(True, 'GET', '/api/spaces', h=forjado)[0], 429)
+        self.assertEqual(self.req(True, 'GET', '/api/spaces', h={**self.K, 'X-Forwarded-For': '203.0.113.50'})[0], 403)
+
+    # ---- duas etapas
+    def test_pela_internet_precisa_de_aparelho(self):
+        s, d, _ = self.req(True, 'GET', '/api/spaces', h=self.K)
+        self.assertEqual(s, 403)
+        self.assertTrue(d.get('precisa_aprovacao'))
+
+    def test_aprovacao_exige_codigo_digitado(self):
+        s, d, r = self.req(True, 'POST', '/api/acesso/pedir', {'nome': 'teste código'}, {**self.K, 'X-Forwarded-For': '198.51.100.1'})
+        ck = r.getheader('Set-Cookie')
+        self.assertIn('HttpOnly', ck)
+        self.assertIn('Secure', ck)
+        self.assertIn('SameSite=Strict', ck)
+        s, lst, _ = self.req(False, 'GET', '/api/acesso/lista', h=self.K)
+        p = next(p for p in lst['pendentes'] if p['nome'] == 'teste código')
+        self.assertNotIn('codigo', p)
+        errado = '000000' if d['codigo'] != '000000' else '111111'
+        self.assertEqual(self.req(False, 'POST', '/api/acesso/decidir', {'id': p['id'], 'aprovar': True, 'codigo': errado}, self.K)[0], 403)
+        self.assertEqual(self.req(False, 'POST', '/api/acesso/decidir', {'id': p['id'], 'aprovar': True, 'codigo': d['codigo'] + 'é'}, self.K)[0], 403)
+        self.assertEqual(self.req(False, 'POST', '/api/acesso/decidir', {'id': p['id'], 'aprovar': True, 'codigo': d['codigo']}, self.K)[0], 200)
+
+    def test_aparelho_aprovado_entra_e_esquecer_tira(self):
+        pdev = self.aprovar('celular', '198.51.100.2')
+        C = {**self.K, 'Cookie': f'pdev={pdev}'}
+        s, d, _ = self.req(True, 'GET', '/api/spaces', h=C)
+        self.assertEqual(s, 200)
+        self.assertNotIn('privado', [x['workspace'] for x in d['spaces']], 'workspace oculto não aparece pela internet')
+        self.assertEqual(self.req(True, 'GET', '/api/spaces', h={'X-Token': 'errada', 'Cookie': f'pdev={pdev}'})[0], 401)
+        self.assertEqual(self.req(True, 'POST', '/api/acesso/esquecer', {}, {'Cookie': f'pdev={pdev}'})[0], 401)
+        s, _, r = self.req(True, 'POST', '/api/acesso/esquecer', {}, C)
+        self.assertIn('Max-Age=0', r.getheader('Set-Cookie'))
+        self.assertEqual(self.req(True, 'GET', '/api/spaces', h=C)[0], 403)
+
+    def test_recusa(self):
+        s, d, r = self.req(True, 'POST', '/api/acesso/pedir', {'nome': 'recusar'}, {**self.K, 'X-Forwarded-For': '198.51.100.3'})
+        pdev = re.search(r'pdev=([^;]+)', r.getheader('Set-Cookie')).group(1)
+        s, lst, _ = self.req(False, 'GET', '/api/acesso/lista', h=self.K)
+        pid = next(p['id'] for p in lst['pendentes'] if p['nome'] == 'recusar')
+        self.req(False, 'POST', '/api/acesso/decidir', {'id': pid, 'aprovar': False}, self.K)
+        s, d, _ = self.req(True, 'GET', '/api/acesso/estado', h={**self.K, 'Cookie': f'pdev={pdev}'})
+        self.assertEqual(d['estado'], 'recusado')
+
+    # ---- conversa, decisões, recados, arquivos
+    def test_conversa_status_limites_e_mascara(self):
+        s, d, _ = self.req(False, 'GET', '/api/conversa?pane=w1:p1&desde=0', h=self.K)
+        self.assertEqual(s, 200)
+        self.assertTrue(d['epoca'])
+        textos = ' '.join(e['x'] for e in d['itens'])
+        self.assertIn('capítulo 3', textos)
+        self.assertNotIn('sk-demo-123456', textos, 'segredo mascarado')
+        self.assertEqual(d['status']['ctx_pct'], 19)
+        self.assertEqual(d['limites']['codex_sem'], 27.0)
+        s, d2, _ = self.req(False, 'GET', f"/api/conversa?pane=w1:p1&desde={d['n']}&epoca={d['epoca']}", h=self.K)
+        self.assertEqual(d2['itens'], [])
+        self.assertEqual(self.req(False, 'GET', '/api/conversa?pane=w1:p1&desde=abc', h=self.K)[0], 400)
+
+    def test_decisao_com_impressao_digital(self):
+        s, d, _ = self.req(False, 'GET', '/api/tela?pane=w2:p1', h=self.K)
+        dlg = d['dialogo']
+        self.assertEqual([o['texto'] for o in dlg['opcoes']][0], 'Yes')
+        self.assertIn('rm -rf build/', dlg['pergunta'])
+        self.assertEqual(self.req(False, 'POST', '/api/tecla', {'pane': 'w2:p1', 'tecla': '1', 'dlg': 'velho'}, self.K)[0], 409)
+        self.assertEqual(self.req(False, 'POST', '/api/tecla', {'pane': 'w2:p1', 'tecla': '1', 'dlg': dlg['id']}, self.K)[0], 200)
+        self.assertEqual(self.req(False, 'POST', '/api/tecla', {'pane': 'w3:p1', 'tecla': '2'}, self.K)[0], 409)
+        self.assertEqual(self.req(False, 'POST', '/api/tecla', {'pane': 'w2:p1', 'tecla': 'shift+tab'}, self.K)[0], 400)
+        self.assertEqual(self.req(False, 'POST', '/api/enviar', {'pane': 'w2:p1', 'texto': 'oi'}, self.K)[0], 409)
+
+    def test_recado_multilinha(self):
+        s, _, _ = self.req(False, 'POST', '/api/enviar', {'pane': 'w3:p1', 'texto': 'linha 1\nlinha 2\x1b[2J'}, self.K)
+        self.assertEqual(s, 200)
+        ult = json.loads(self.d['estado'].with_suffix('.log').read_text().splitlines()[-1])
+        self.assertEqual(ult['texto'], '[Recado do Ana pelo portal] linha 1\nlinha 2 [2J')
+
+    def test_corpos_invalidos(self):
+        self.assertEqual(self.req(False, 'POST', '/api/enviar', b'[]', {**self.K, 'Content-Type': 'application/json'})[0], 400)
+        self.assertIn(self.req(False, 'POST', '/api/enviar', b'{}', {**self.K, 'Content-Length': '-1'})[0], (400, 411, 413))
+
+    def test_upload(self):
+        self.assertEqual(self.req(False, 'POST', '/api/arquivo?pane=w3:p1&nome=x.exe', b'MZ', self.K)[0], 415)
+        s, d, _ = self.req(False, 'POST', '/api/arquivo?pane=w3:p1&nome=../../relatorio.pdf', b'%PDF-1.4 demo', self.K)
+        self.assertEqual(s, 200, d)
+        p = Path(d['caminho'])
+        self.assertTrue(p.name.endswith('_relatorio.pdf'))
+        self.assertEqual(p.parent.name, '_recebidos_portal')
+        self.assertEqual(oct(p.parent.stat().st_mode)[-3:], '700')
+        self.assertTrue((p.parent / '.gitignore').exists())
+        c = socket.create_connection(('127.0.0.1', self.d['priv']))
+        c.sendall(f"POST /api/arquivo?pane=w3:p1&nome=cortado.txt HTTP/1.0\r\nHost: 127.0.0.1:{self.d['priv']}\r\n"
+                  f"X-Token: {self.d['token']}\r\nContent-Length: 1000\r\n\r\n".encode() + b'x' * 100)
+        c.close()
+        time.sleep(0.5)
+        self.assertFalse(any('cortado' in f.name for f in p.parent.iterdir()), 'envio cortado não é salvo')
+
+    def test_trocar_chave_exige_a_atual(self):
+        self.assertEqual(self.req(False, 'POST', '/api/acesso/trocar-chave', {}, self.K)[0], 403)
+
+
+class UnidadeTest(unittest.TestCase):
+    def setUp(self):
+        import os
+        os.environ.setdefault('MGE_PORTAL_DIR', tempfile.mkdtemp(prefix='_tmp_unid_', dir=AQUI))
+        sys.path.insert(0, str(RAIZ / 'portal'))
+        import portal
+        self.p = portal
+
+    def test_dialogo_sem_opcoes(self):
+        self.assertIsNone(self.p.dialogo('texto normal\nsem opções\n'))
+        self.assertIsNone(self.p.dialogo('só uma opção:\n❯ 1. Yes\n'))
+
+    def test_dialogo_confianca(self):
+        d = self.p.dialogo(' Do you trust the files in this folder?\n\n /home/x/proj\n\n ❯ 1. Yes, proceed\n   2. No, exit\n')
+        self.assertEqual(len(d['opcoes']), 2)
+        self.assertIn('trust', d['pergunta'])
+
+    def test_mascara_e_nome_seguro(self):
+        self.assertEqual(self.p.mascarar('senha: hunter22222 token=abcdefghij'), 'senha: *** token=***')
+        self.assertEqual(self.p.nome_seguro('../../' + 'a' * 200 + '.pdf')[-4:], '.pdf')
+
+
+if __name__ == '__main__':
+    unittest.main()

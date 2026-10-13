@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# MGE-AgentPortal: start | stop | status | chave (gera uma chave nova de 256 bits)
+set -euo pipefail
+RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
+DIR="${MGE_PORTAL_DIR:-$HOME/.config/mge-agentportal}"
+mkdir -p -m 700 "$DIR"
+exec 9>"$DIR/.ctl.lock"; flock 9
+pid() { [ -f "$DIR/portal.pid" ] && read -r P < "$DIR/portal.pid" && kill -0 "$P" 2>/dev/null && grep -q server.py "/proc/$P/cmdline" && echo "$P"; }
+case "${1:-status}" in
+  start)  if P=$(pid); then echo "já rodando: PID $P"; exit 0; fi
+          nohup setsid python3 -u "$RAIZ/portal/server.py" 9>&- >> "$DIR/portal.log" 2>&1 < /dev/null &
+          echo $! > "$DIR/portal.pid"; sleep 1; P=$(pid) && echo "iniciado: PID $P" || { echo "falhou; veja $DIR/portal.log"; exit 1; } ;;
+  stop)   if P=$(pid); then kill -TERM "$P"; echo "parado: PID $P"; else echo "parado"; fi; rm -f "$DIR/portal.pid" ;;
+  status) if P=$(pid); then echo "rodando: PID $P"; else echo "parado"; fi ;;
+  chave)  umask 077; python3 -c "import secrets;print(secrets.token_urlsafe(32))" > "$DIR/token"; echo "chave nova em $DIR/token" ;;
+  *) echo "uso: portal-ctl start|stop|status|chave"; exit 2 ;;
+esac
