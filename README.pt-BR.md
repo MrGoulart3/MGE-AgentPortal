@@ -182,3 +182,13 @@ O script sobe um servidor com herdr falso, coleta respostas da API e captura a i
 - O mascaramento de segredos é heurístico e não substitui revisar o que aparece na tela. Uploads não passam por análise de malware.
 
 Licença: [MIT](LICENSE).
+
+## Painel opcional de recursos do PC
+
+Desativado por padrão. Defina `painel.enabled` como `true` na configuração privada e reinicie. Configure `painel.project_root` (raiz absoluta dos projetos), `disk` (nome do dispositivo em `/proc/diskstats`, vazio desliga taxas de disco), `mounts` (caminhos dos sistemas de arquivos), `job_state` (JSON de estado do MGE-LocalCompute), `interval` (segundos, mínimo 1), `min_ram_gb`, `max_load` e `max_temp`. O painel expande `~` na raiz e no caminho de estado dos jobs; os demais caminhos de configuração do portal continuam exigindo caminhos absolutos.
+
+Depois de entrar, use **Recursos do PC** no cabeçalho; ele abre `/painel` autenticado em outra aba. A chave vai nos cabeçalhos, nunca na URL. Permita popups. Para reabrir após atualização completa do navegador, volte a `/spaces` e use o botão. `/painel` e `/api/estado` exigem chave; a porta pública também exige aparelho aprovado. Desativado, as rotas retornam 404.
+
+O coletor consulta CPU/por núcleo, RAM/swap, carga, temperatura/power-clamp, taxas de disco/rede, processos por projeto, jobs gerenciados e histórico limitado em memória. Não lê nomes de contas nem expõe argumentos ou caminhos de executáveis. A resposta pública permite só detalhes de projetos associados a workspaces visíveis e remove processos e jobs ocultos/desconhecidos; falha na filtragem retorna 503. Se workspaces visíveis e ocultos estiverem sob o mesmo projeto de primeiro nível, todo esse grupo fica oculto. Totais globais e histórico ainda incluem a máquina inteira. O acesso privado mostra todos os projetos coletados. Sensores ausentes, diretórios de processos ilegíveis ou disco não configurado podem deixar valores indisponíveis. Somas de RSS podem contar páginas compartilhadas mais de uma vez.
+
+Se o ambiente bloquear sockets TCP locais, a suíte usa automaticamente o handler HTTP real sobre fluxos de bytes em memória. Todas as verificações de rotas/corpos continuam, inclusive uploads interrompidos; listeners, concorrência TCP e timeouts de socket precisam de ambiente com sockets. Onde permitido, o transporte normal continua TCP.

@@ -182,3 +182,13 @@ The script starts a server with fake herdr, collects API responses, and captures
 - Secret masking is heuristic and does not replace reviewing what appears on screen. Uploads are not scanned for malware.
 
 License: [MIT](LICENSE).
+
+## Optional PC resources panel
+
+Disabled by default. Set `painel.enabled` to `true` in the private configuration and restart. Configure `painel.project_root` (absolute projects directory), `disk` (device name from `/proc/diskstats`, empty disables disk rates), `mounts` (filesystem paths), `job_state` (MGE-LocalCompute state JSON), `interval` (seconds, at least 1), `min_ram_gb`, `max_load` and `max_temp`. The panel expands `~` in its project and job-state paths; the other portal configuration paths still require absolute values.
+
+After signing in, use **PC resources** in the portal header; it opens an authenticated `/painel` in another tab. The key is sent in request headers, never in the URL. Popups must be allowed. To reopen after a full browser refresh, return to `/spaces` and use the button again. `/painel` and `/api/estado` require the key; the public port also requires an approved device. When disabled, panel routes return 404.
+
+The collector reads Linux CPU/per-core utilization, RAM/swap, load, temperature and power-clamp, disk/network rates, process groups by project, managed jobs and a bounded in-memory history. It does not read account names or expose command arguments and executable paths. The public response permits only project details mapped to visible portal workspaces and omits hidden/unmapped processes and jobs; filtering failures return 503. If hidden and visible nested workspaces share one top-level project, that entire project group is omitted. Global totals and history still include the whole machine. Private access shows all collected projects. Missing sensors, unreadable process directories or an unconfigured disk may leave some values unavailable. RSS sums can count shared pages more than once.
+
+The test suite automatically uses the real HTTP handler over in-memory byte streams when the environment blocks local TCP sockets. All route/body assertions still run, including interrupted uploads; listener binding, TCP concurrency and socket-level timeouts require a socket-enabled environment. The normal transport remains TCP where permitted.

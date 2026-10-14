@@ -37,6 +37,7 @@ CONFIG_PADRAO = dict(
     dias_aparelho=30,
     janela_contexto=1_000_000,
     cache_uso=str(Path.home() / '.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json'),
+    painel=dict(enabled=False),                      # optional Linux PC collector
     upload_mb=25,
     upload_pasta='_recebidos_portal',
 )
@@ -696,7 +697,7 @@ class PortalMixin:
     def r_spaces(self, q):
         if self.authorized():
             campos = ('pane', 'workspace', 'agent', 'status', 'title')
-            self.json_reply(200, dict(spaces=[{k: r[k] for k in campos} for r in visiveis(self.public)]))
+            self.json_reply(200, dict(spaces=[{k: r[k] for k in campos} for r in visiveis(self.public)], painel=bool(CFG.get('painel', {}).get('enabled'))))
 
     def r_recados(self, q):
         if self.authorized() and (sp := self.pane_q(q)):

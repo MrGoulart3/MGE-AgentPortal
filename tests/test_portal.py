@@ -17,6 +17,7 @@ from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
 import demo  # noqa: E402
+import transport  # noqa: E402
 
 RAIZ = AQUI.parent
 
@@ -25,6 +26,13 @@ class PortalTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.base = Path(tempfile.mkdtemp(prefix='_tmp_portal_', dir=AQUI))
+        cls.memory = None
+        if not transport.available():
+            cls.d = transport.fixture_without_sockets(demo, cls.base)
+            cls.memory = transport.MemoryServer(cls.d)
+            cls.K = {'X-Token': cls.d['token']}
+            print('HTTP tests: in-memory transport (TCP unavailable)', flush=True)
+            return
         cls.d = demo.montar(cls.base)
         cls.proc = subprocess.Popen([sys.executable, '-u', str(RAIZ / 'portal/server.py')], env=cls.d['env'],
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -39,11 +47,16 @@ class PortalTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.proc.terminate()
-        cls.proc.wait(5)
+        if cls.memory:
+            cls.memory.close()
+        else:
+            cls.proc.terminate()
+            cls.proc.communicate(timeout=5)
         shutil.rmtree(cls.base, ignore_errors=True)
 
     def req(self, publica, metodo, caminho, corpo=None, h=None):
+        if self.memory:
+            return self.memory.request(publica, metodo, caminho, corpo, h)
         porta = self.d['pub'] if publica else self.d['priv']
         c = http.client.HTTPConnection('127.0.0.1', porta, timeout=20)
         hs = {'Host': f'127.0.0.1:{porta}', **(h or {})}
@@ -95,7 +108,7 @@ class PortalTest(unittest.TestCase):
         for _ in range(16):
             self.req(True, 'GET', '/api/spaces', h=h)
         self.assertEqual(self.req(True, 'GET', '/api/spaces', h=h)[0], 429)
-        forjado = {'X-Token': 'x', 'X-Forwarded-For': '10.1.1.1, 203.0.113.50'}   # o IP real vem por último
+        forjado = {'X-Token': 'x', 'X-Forwarded-For': '192.0.2.1, 203.0.113.50'}   # o IP real vem por último
         self.assertEqual(self.req(True, 'GET', '/api/spaces', h=forjado)[0], 429)
         self.assertEqual(self.req(True, 'GET', '/api/spaces', h={**self.K, 'X-Forwarded-For': '203.0.113.50'})[0], 403)
 

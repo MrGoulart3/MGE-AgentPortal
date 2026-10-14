@@ -44,7 +44,7 @@ button.b{cursor:pointer}button.main{background:var(--accent);border-color:var(--
 @media(max-width:760px){.layout{grid-template-columns:1fr}#lista .space{display:none}#lista select{display:block}pre#tela,#chat{height:46vh}main{padding:12px}}
 </style>
 <main>
-<header><div><h1>Agent Portal</h1><small data-i18n="subtitle">Conversa com os agentes de IA do herdr</small></div><div class="row" style="margin-top:0"><small id="status"></small><span id="idiomas"><button class="b" type="button" data-idioma="pt" lang="pt-BR">PT</button> | <button class="b" type="button" data-idioma="en" lang="en">EN</button></span></div></header>
+<header><div><h1>Agent Portal</h1><small data-i18n="subtitle">Conversa com os agentes de IA do herdr</small></div><div class="row" style="margin-top:0"><small id="status"></small><button class="b" id="abrirPainel" type="button" hidden data-i18n="pcPanel">PC resources</button><span id="idiomas"><button class="b" type="button" data-idioma="pt" lang="pt-BR">PT</button> | <button class="b" type="button" data-idioma="en" lang="en">EN</button></span></div></header>
 
 <section id="login" class="card" hidden>
 <h2 data-i18n="accessKey">Chave de acesso</h2>

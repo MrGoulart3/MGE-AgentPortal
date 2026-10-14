@@ -109,7 +109,9 @@ const T = {
     "fileIntro": "Enviei arquivo(s) para você olhar.",
     "filePaths": "Arquivo(s) salvo(s) no PC:",
     "connectionStatus": "Sem conexão: {error}",
-    "updatedStatus": "Atualizado {time}"
+    "updatedStatus": "Atualizado {time}",
+    "pcPanel": "Recursos do PC",
+    "panelOpenError": "Não foi possível abrir o painel. Entre novamente no portal."
   },
   "en": {
     "subtitle": "Chat with herdr AI agents",
@@ -216,7 +218,9 @@ const T = {
     "fileIntro": "I sent file(s) for you to review.",
     "filePaths": "File(s) saved on the PC:",
     "connectionStatus": "Disconnected: {error}",
-    "updatedStatus": "Updated {time}"
+    "updatedStatus": "Updated {time}",
+    "pcPanel": "PC resources",
+    "panelOpenError": "Unable to open the panel. Please sign in to the portal again."
   }
 };
 const ST = {working: 'working', done: 'done', idle: 'idle', blocked: 'blocked', unknown: 'unknown'};
@@ -339,7 +343,8 @@ async function esperar() {
 // ---------- lista de spaces
 async function carregarLista(forcar) {
   if (!forcar && Date.now() - ultLista < 6000 && lista.length) return;
-  lista = (await api('/api/spaces')).spaces; ultLista = Date.now();
+  const resposta = await api('/api/spaces');
+  lista = resposta.spaces; $('abrirPainel').hidden = !resposta.painel; ultLista = Date.now();
   carregarAcessos();
   desenharLista();
 }
@@ -600,3 +605,17 @@ $('lembrar').checked = lembrar;
 function iniciar() { $('login').hidden = true; $('app').hidden = false; aplicarTela(); atualizar() }
 if (chave) api('/api/spaces').then(iniciar).catch(e => { if (e.code === 'invalidKey') sair(true); else if (e.code !== 'unapproved') { $('login').hidden = false; mostrarErro('lerr', e) } });
 else sair(false);
+
+// The HTML route is authenticated through the same headers as the APIs.
+$('abrirPainel').onclick = async () => {
+  const painel = window.open('', '_blank');
+  if (!painel) return;
+  try {
+    const response = await fetch('/painel', {headers: {'X-Token': chave, 'X-Device': aparelhoAntigo}, signal: AbortSignal.timeout(5000)});
+    if (!response.ok) throw Error();
+    const html = await response.text();
+    painel.portalPanelKey = chave; painel.portalPanelDevice = aparelhoAntigo;
+    painel.document.open(); painel.document.write(html); painel.document.close();
+    painel.history.replaceState(null, '', '/painel');
+  } catch (_) { painel.close(); $('status').textContent = t('panelOpenError'); }
+};

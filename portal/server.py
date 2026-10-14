@@ -10,11 +10,14 @@ import json
 from pathlib import Path
 import signal
 import socket
+import subprocess
 import threading
 
 import portal
+import resources
 
 BASE = Path(__file__).resolve().parent / 'web'
+COLLECTOR = resources.Collector(portal.CFG.get('painel') or {}) if portal.CFG.get('painel', {}).get('enabled') else None
 PRIVADOS = [tuple(x) for x in portal.CFG.get('enderecos_privados', [['127.0.0.1', 8787]])]
 PUBLICO = ('127.0.0.1', int(portal.CFG['porta_publica']))
 VAGAS = {'privada': int(portal.CFG.get('max_conexoes_privada', 24)), 'publica': int(portal.CFG.get('max_conexoes_publica', 16))}
@@ -79,6 +82,34 @@ class Handler(portal.PortalMixin, BaseHTTPRequestHandler):
         if not self.host_ok() or self.portal_route('GET'):
             return
         caminho = self.path.split('?', 1)[0]
+        if caminho in ('/painel', '/api/estado', '/painel.js'):
+            if COLLECTOR is None:
+                self.send_error(404)
+                return
+            if caminho == '/painel.js':
+                self.reply(200, (BASE / 'painel.js').read_bytes(), 'text/javascript; charset=utf-8')
+                return
+            if not self.authorized():
+                return
+            if caminho == '/painel':
+                self.reply(200, (BASE / 'painel.html').read_bytes(), 'text/html; charset=utf-8')
+                return
+            payload = COLLECTOR.payload
+            if payload == b'{}':
+                self.json_reply(503, dict(erro='Waiting for sample / Aguardando coleta'))
+                return
+            if self.public:
+                try:
+                    rows = portal.spaces_list()
+                    visible = [row for row in rows if not portal.oculto(row)]
+                    hidden = [*portal.CFG['ocultos_na_internet'],
+                              *(row['cwd'] for row in rows if portal.oculto(row))]
+                    payload = resources.public_snapshot(payload, COLLECTOR.root, visible, hidden)
+                except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+                    self.json_reply(503, dict(erro='Workspace map unavailable / Mapa indisponível'))
+                    return
+            self.reply(200, payload)
+            return
         if caminho == '/':
             self.send_response(302)
             self.send_header('Location', '/spaces')
@@ -167,9 +198,13 @@ def main() -> None:
         print(f'ATENÇÃO: sem chave em {portal.TOKEN_FILE}. Gere uma: scripts/portal-ctl chave', flush=True)
     signal.signal(signal.SIGTERM, lambda *_: parar.set())
     signal.signal(signal.SIGINT, lambda *_: parar.set())
+    if COLLECTOR is not None:
+        threading.Thread(target=COLLECTOR.run, daemon=True).start()
     for server in servers:
         threading.Thread(target=server.serve_forever, daemon=True).start()
     parar.wait()
+    if COLLECTOR is not None:
+        COLLECTOR.stopped.set()
     for server in servers:
         server.shutdown()
         server.server_close()
