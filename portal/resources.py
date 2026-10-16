@@ -12,6 +12,7 @@ import time
 ROOT = Path.home() / "projects"
 HZ = os.sysconf('SC_CLK_TCK')
 PAGE = os.sysconf('SC_PAGE_SIZE')
+COMPUTE_COMMANDS = ('xtb', 'crest', 'orca', 'sella', 'rodar_local')
 
 
 def read(path: str | Path) -> str:
@@ -33,7 +34,8 @@ def project(cwd: str, root: Path = ROOT) -> str | None:
         return None
 
 
-def category(name: str, command: str) -> str:
+def category(name: str, command: str,
+             compute_commands: list[str] | tuple[str, ...] = COMPUTE_COMMANDS) -> str:
     """Classifies programs without exposing their arguments."""
     arguments = command.split()
     executable = Path(arguments[0]).name if arguments else name
@@ -43,7 +45,7 @@ def category(name: str, command: str) -> str:
     for kind in ('claude', 'codex', 'opencode'):
         if kind in value:
             return kind
-    if any(word in value for word in ('xtb', 'crest', 'orca', 'sella', 'rodar_local')):
+    if any(word.lower() in value for word in compute_commands if word):
         return 'compute'
     return 'other'
 
@@ -57,7 +59,9 @@ class Collector:
         self.disk = self.options.get('disk', '')
         self.mounts = self.options.get('mounts', ['/'])
         self.interval = max(1, float(self.options.get('interval', 3)))
-        self.job_state = Path(self.options.get('job_state', '~/.local/state/mge-localcompute/state.json')).expanduser()
+        job_state = self.options.get('job_state', '~/.local/state/mge-localcompute/state.json')
+        self.job_state = Path(job_state).expanduser() if job_state else None
+        self.compute_commands = self.options.get('compute_commands', COMPUTE_COMMANDS)
         self.previous = {}
         self.previous_cpu = {}
         self.previous_io = {}
@@ -100,7 +104,7 @@ class Collector:
                                  cpu=cpu, ram=max(0, int(fields[21])) * PAGE,
                                  seconds=max(0, uptime - start / HZ),
                                  cpu_seconds=ticks / HZ, command=Path(executable).name[:100],
-                                 kind=category(name, command))
+                                 kind=category(name, command, self.compute_commands))
             except (OSError, ValueError, IndexError):
                 continue
         for row in rows.values():
@@ -209,7 +213,7 @@ class Collector:
             kind['count'] += 1
         jobs = []
         try:
-            state = json.loads(read(self.job_state))
+            state = json.loads(read(self.job_state)) if self.job_state else {}
             for job in state.get('jobs', []):
                 jobs.append(dict(pid=job['pid'], threads=job['threads'],
                                  space=project(job.get('cwd', ''), self.root),

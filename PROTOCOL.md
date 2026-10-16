@@ -12,7 +12,7 @@ Choose which projects can be operated remotely and who will have the key. Run th
 
 ## 2. Prepare agents and the multiplexer
 
-Install and configure herdr, Claude Code, and/or Codex on the home machine. Open the agents in the desired workspaces. Check that herdr lists workspaces and agents and can read a pane's screen:
+Install and configure herdr, Claude Code, and/or Codex on the Linux host. Open the agents in the desired workspaces. Check that herdr lists workspaces and agents and can read a pane's screen:
 
 ```bash
 herdr workspace list
@@ -43,7 +43,7 @@ scripts/portal-ctl chave
 cp config.example.json ~/.config/mge-agentportal/config.json
 ```
 
-Edit the copy. Use `Ana` as the example name, adjust the herdr executable, and remove fictional commands and paths. Start with the private entry point `[["127.0.0.1", 8787]]`. If you need access over the Tailscale network, configure the correct private address only in your local copy.
+Edit the copy. Replace the fictional name `Ana` with your name. The example finds herdr on the `PATH`, starts with the private entry point `[["127.0.0.1", 8787]]`, and leaves notifications and workspace hiding unconfigured. If you need access over the Tailscale network, configure the correct private address only in your local copy. `chave` means “key”; the command above generates one. Other Portuguese names are explained in [README.md](README.md#configuration).
 
 Fill `hosts_permitidos` with the exact values used by the browser and proxy, including `minha-maquina.tailnet-exemplo.ts.net` replaced with your machine's name. Define `ocultos_na_internet` by IDs, labels, or folder prefixes. Keep `upload_pasta` relative and check permissions on the configuration directory and existing upload folders.
 
@@ -53,6 +53,7 @@ Run:
 
 ```bash
 python3 -m unittest discover -s tests -v
+node --test tests/*_js_check.js
 ```
 
 `tests/demo.py` sets up a temporary HOME and configuration, fictional data, and an executable that calls `tests/herdr_falso.py`. Tests check the key, approval, cookies, Host, hiding, conversation, limits, decisions, and uploads. They need neither Tailscale nor agent accounts. The suite does not replace checking the production configuration and the real proxy.
@@ -104,9 +105,10 @@ To reproduce the result images, with Firefox on the `PATH`:
 
 ```bash
 python3 scripts/gerar_imagens.py
+IDIOMA=en python3 scripts/gerar_imagens.py
 ```
 
-The script queries the API of a server with fake herdr and captures the interface using recorded responses. It generates `conversa.png`, `decisao.png`, `acessos.png`, `aprovacao.png`, and `celular.png` in `docs/img`. Use fictional data when sharing demonstrations.
+The script queries the API with fake herdr and captures the interface using recorded responses. When TCP is unavailable, it uses the same in-memory HTTP handler as the tests. It generates `conversa.png`, `decisao.png`, `acessos.png`, `aprovacao.png`, and `celular.png` in `docs/img` (Portuguese) and `docs/img/en` (English). Use fictional data when sharing demonstrations.
 
 ## 11. Operate, revoke, and shut down
 

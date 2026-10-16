@@ -1,5 +1,5 @@
 'use strict';
-// Portal dos Spaces: conversa com os agentes do herdr (modo chat), terminal ao vivo, decisões, arquivos e acessos.
+// MGE-AgentPortal: conversa com os agentes do herdr, terminal ao vivo, decisões, arquivos e acessos.
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
@@ -69,7 +69,7 @@ const T = {
     "codexWindow": "Codex · janela de 5 h",
     "codexWeek": "Codex · semana",
     "context": "Contexto da conversa",
-    "contextTokens": " mil de 1 milhão de tokens",
+    "contextTokens": "{used} de {total} tokens",
     "session": "Sessão",
     "actions": " ações",
     "mode": "Modo",
@@ -178,7 +178,7 @@ const T = {
     "codexWindow": "Codex · 5 h window",
     "codexWeek": "Codex · week",
     "context": "Conversation context",
-    "contextTokens": " thousand of 1 million tokens",
+    "contextTokens": "{used} of {total} tokens",
     "session": "Session",
     "actions": " actions",
     "mode": "Mode",
@@ -271,7 +271,7 @@ if (lerS('portal_auto') === null && matchMedia('(max-width:760px)').matches) { a
 let lista = [], grudado = true, timer = null, aptimer = null, ger = 0, ultLista = 0, ultRecados = 0, abertoAc = false;
 let conv = [], convN = 0, convEpoca = '', convPane = '', anexos = [], dlgId = '', pendVistos = '', lembrar = lerS('portal_lembrar') !== '0';
 const EXT = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.txt', '.md', '.csv', '.tsv', '.json', '.xyz', '.log', '.out', '.inp', '.gjf', '.com', '.mol', '.mol2', '.sdf', '.pdb', '.cif', '.docx', '.xlsx', '.pptx', '.zip']);
-const MAX_MB = 25;
+let maxUploadMB = 25;
 
 // ---------- API
 async function api(path, body, opts = {}) {
@@ -344,6 +344,7 @@ async function esperar() {
 async function carregarLista(forcar) {
   if (!forcar && Date.now() - ultLista < 6000 && lista.length) return;
   const resposta = await api('/api/spaces');
+  maxUploadMB = num(resposta.upload_mb, 25);
   lista = resposta.spaces; $('abrirPainel').hidden = !resposta.painel; ultLista = Date.now();
   carregarAcessos();
   desenharLista();
@@ -441,7 +442,7 @@ function desenharStatus(st, lim) {
   if (st && modo === 'conversa') h += card('modelo', '<small>' + esc(t('model')) + '</small><b>' + esc(nomeModelo(st.modelo)) + '</b>');
   if (lim) h += lc('claude5h', t('claudeWindow'), lim.claude_5h, lim.claude_5h_reset) + lc('codex5h', t('codexWindow'), lim.codex_5h, lim.codex_5h_reset) + lc('codexsem', t('codexWeek'), lim.codex_sem, lim.codex_sem_reset);
   if (st && modo === 'conversa') {
-    h += card('contexto', '<small>' + esc(t('context')) + '</small><b>' + num(st.ctx_pct) + '%</b> · ' + Math.round(num(st.ctx) / 1000) + esc(t('contextTokens')) + barra(st.ctx_pct));
+    h += card('contexto', '<small>' + esc(t('context')) + '</small><b>' + num(st.ctx_pct) + '%</b> · ' + esc(t('contextTokens', {used: num(st.ctx).toLocaleString(locale()), total: num(st.janela_contexto, 1000000).toLocaleString(locale())})) + barra(st.ctx_pct));
     if (st.ferramentas != null) h += card('sessao', '<small>' + esc(t('session')) + '</small><b>' + esc(dur(st.inicio)) + '</b> · ' + num(st.ferramentas) + esc(t('actions')));
     h += card('modo', '<small>' + esc(t('mode')) + '</small><b>' + esc(st.modo === 'auto' ? t('automatic') : st.modo || '?') + '</b>' + (st.branch ? ' · git ' + esc(st.branch) : ''));
   }
@@ -517,7 +518,7 @@ function anexar(files) {
     if (!f.name || f.name === 'image.png') f = new File([f], 'print_' + Date.now() + '.png', {type: f.type || 'image/png'});
     const ext = (f.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
     if (!EXT.has(ext)) { msgI18n('typeError', false, {ext: ext || t('noExtension'), name: f.name}); continue }
-    if (f.size > MAX_MB * 1048576) { msgI18n('exceeds', false, {name: f.name, size: MAX_MB}); continue }
+    if (f.size > maxUploadMB * 1048576) { msgI18n('exceeds', false, {name: f.name, size: maxUploadMB}); continue }
     anexos.push(f);
   }
   desenharAnexos();

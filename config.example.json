@@ -1,13 +1,9 @@
 {
   "dono": "Ana",
-  "herdr": "/home/ana/.local/bin/herdr",
+  "herdr": "herdr",
   "enderecos_privados": [
     [
       "127.0.0.1",
-      8787
-    ],
-    [
-      "192.0.2.10",
       8787
     ]
   ],
@@ -15,17 +11,10 @@
   "hosts_permitidos": [
     "127.0.0.1:8787",
     "localhost:8787",
-    "192.0.2.10:8787",
-    "127.0.0.1:8788",
-    "minha-maquina.tailnet-exemplo.ts.net"
+    "127.0.0.1:8788"
   ],
-  "ocultos_na_internet": [
-    "Projeto de outra pessoa",
-    "/home/ana/projetos/privado"
-  ],
-  "aviso_cmd": [
-    "/home/ana/bin/avisar"
-  ],
+  "ocultos_na_internet": [],
+  "aviso_cmd": [],
   "copia_da_chave": "",
   "dias_aparelho": 30,
   "upload_mb": 25,
@@ -33,7 +22,7 @@
   "janela_contexto": 1000000,
   "painel": {
     "enabled": false,
-    "project_root": "/home/ana/projetos",
+    "project_root": "~/projects",
     "disk": "",
     "mounts": [
       "/"

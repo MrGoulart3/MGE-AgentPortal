@@ -21,6 +21,15 @@ SPEC.loader.exec_module(RESOURCES)
 
 
 class SnapshotTest(unittest.TestCase):
+    def test_compute_programs_are_configurable(self):
+        self.assertEqual('compute', RESOURCES.category('xtb', '/usr/bin/xtb'))
+        self.assertEqual('other', RESOURCES.category('xtb', '/usr/bin/xtb', []))
+        collector = RESOURCES.Collector({'compute_commands': ['RENDER_JOB'], 'job_state': ''})
+        self.assertEqual('compute', RESOURCES.category('python3', 'python3 render_job.py', collector.compute_commands))
+        self.assertEqual('codex', RESOURCES.category('node', 'node codex.js', collector.compute_commands))
+        self.assertIsNone(collector.job_state)
+        self.assertEqual([], collector.sample()['jobs'])
+
     def test_hides_unmapped_projects_processes_and_jobs_without_mutation(self):
         source = json.dumps({'spaces': {'proj-a': {}, 'hidden': {}, 'system/other': {}},
                              'processes': [{'space': 'proj-a'}, {'space': 'hidden'}],
@@ -60,11 +69,11 @@ class PanelTest(unittest.TestCase):
         cfg['ocultos_na_internet'] = ['w4']
         cfg_path.write_text(json.dumps(cfg))
         cls.jobs = []
-        for name, duration in [('paper-review', 31), ('privado', 32)]:
+        for name, duration in [('docs-guide', 31), ('privado', 32)]:
             cls.jobs.append(subprocess.Popen([sys.executable, '-c', f'import time; time.sleep({duration})'], cwd=root / name))
         (cls.base / 'jobs.json').write_text(json.dumps({'jobs': [
             {'pid': child.pid, 'threads': 1, 'cwd': str(root / name), 'paused': False}
-            for child, name in zip(cls.jobs, ['paper-review', 'privado'])]}))
+            for child, name in zip(cls.jobs, ['docs-guide', 'privado'])]}))
         if not transport.available():
             cls.memory = transport.MemoryServer(cls.d)
             cls.K = {'X-Token': cls.d['token']}
@@ -125,7 +134,7 @@ class PanelTest(unittest.TestCase):
         headers = self.K | {'Cookie': 'pdev=' + device, 'X-Forwarded-For': '203.0.113.41'}
         code, public, _ = self.snapshot(True, headers)
         self.assertEqual(200, code)
-        self.assertIn('paper-review', public['spaces'])
+        self.assertIn('docs-guide', public['spaces'])
         self.assertNotIn('privado', public['spaces'])
         self.assertFalse(any(row.get('space') == 'privado' for key in ('jobs', 'processes') for row in public[key]))
         self.assertIn('no-store', self.req(True, 'GET', '/painel', h=headers)[2].getheader('Cache-Control'))

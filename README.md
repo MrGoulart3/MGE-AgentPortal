@@ -2,7 +2,7 @@
 
 # MGE-AgentPortal
 
-A web portal for chatting from any browser with AI agents, such as Claude Code and Codex, running in the **herdr** multiplexer on a home machine. The server uses only the Python standard library, with no pip dependencies.
+A web portal for chatting from any browser with AI agents, such as Claude Code and Codex, running in the **herdr** multiplexer on a Linux host. The server uses only the Python standard library, with no pip dependencies.
 
 > **Security: whoever controls the portal controls the agents and, through them, the machine.** Protect the key, approve only known devices, and read [SECURITY.md](SECURITY.md) before publishing.
 
@@ -38,7 +38,7 @@ Mobile use:
 
 ![Conversation in a mobile browser](docs/img/en/celular.png)
 
-The images are generated using the fictional scenario in `tests/demo.py`.
+The images are generated using the fictional scenario in `tests/demo.py`. Names, projects, devices, timestamps, and usage values in the demonstrations are sample data.
 
 ## How it works
 
@@ -60,6 +60,7 @@ At the public entry point, a new device provides its name and receives a **six-d
 - Tailscale installed, connected, and authorized to use Funnel for internet access.
 - A modern browser with JavaScript and cookies enabled.
 - Firefox on the `PATH` only for regenerating the images.
+- Node.js only for running the JavaScript tests.
 
 The portal neither installs nor starts the agents. To work as intended, it needs access to that user's local session data.
 
@@ -81,7 +82,7 @@ Run from the root of this repository:
    cp config.example.json ~/.config/mge-agentportal/config.json
    ```
 
-   Edit the copy before starting. Set `herdr` to the installed executable, use `dono: "Ana"` as an example, and remove fictional paths that do not apply. Leave `aviso_cmd` empty if you do not use notifications. To start locally, use `enderecos_privados: [["127.0.0.1", 8787]]`. If you need the private entry point over the Tailscale network, add this machine's address to the configuration without opening the private port to the internet.
+   The example starts on loopback, finds `herdr` on the `PATH`, and leaves notifications and workspace hiding unconfigured. Set `dono` to your name (`"Ana"` is fictional); if needed, set `herdr` to its absolute executable path and `aviso_cmd` to your notification command. Add sensitive workspace IDs, labels, or absolute folder prefixes (fictional example: `/home/ana/projects/private`) to `ocultos_na_internet`. If you need the private entry point over the Tailscale network, add this machine's address without opening the private port to the internet.
 
    Fill `hosts_permitidos` with the Hosts actually used: `127.0.0.1:8787`, `localhost:8787`, `127.0.0.1:8788`, the private Host if applicable, and `minha-maquina.tailnet-exemplo.ts.net` replaced with your machine's name. An empty list disables Host checking.
 
@@ -130,12 +131,14 @@ sudo tailscale funnel --https=443 off
 
 ## Configuration
 
-The file is `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` lets you choose another directory for configuration, the key, access records, and logs; use the same value in the controller and the server. Restart the process after editing the configuration. Paths in JSON must be absolute, without `~`.
+The file is `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` lets you choose another directory for configuration, the key, access records, and logs; use the same value in the controller and the server. Restart the process after editing the configuration. File paths in JSON must be absolute, without `~`, except for the panel paths described below; `herdr` may also be an executable name on the `PATH`.
+
+Existing Portuguese names remain part of the public interface: `chave` means “key” (`portal-ctl chave` generates one), `painel` means “panel”, `estado` means “state”, `herdr_falso.py` provides fake herdr, and `gerar_imagens.py` generates screenshots. Configuration keys keep their spelling; the table translates their purpose.
 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `dono` | `"dono"` | Name in the message prefix; the example uses `"Ana"`. |
-| `herdr` | Executable on the `PATH` or `~/.local/bin/herdr` | Path to herdr. |
+| `herdr` | Executable on the `PATH` or `~/.local/bin/herdr` | Executable path or name on the `PATH`. |
 | `enderecos_privados` | `[["127.0.0.1", 8787]]` | Address and port pairs requiring only the key. Use ports different from `porta_publica`. |
 | `porta_publica` | `8788` | Local port published by Funnel; always on `127.0.0.1`. |
 | `hosts_permitidos` | `[]` | Exact accepted Host header values; an empty list does not check Host. |
@@ -143,7 +146,7 @@ The file is `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` lets you c
 | `aviso_cmd` | `[]` | List of command and arguments for notifications; title, message, and priority are appended. |
 | `copia_da_chave` | `""` | Additional file to copy the key to when changing it through the API; empty disables this. The `portal-ctl chave` command does not make this copy. |
 | `dias_aparelho` | `30` | Validity of device approval and the device cookie. |
-| `upload_mb` | `25` | Server size limit per file, in MiB. The interface limits uploads to 25 MiB. |
+| `upload_mb` | `25` | Size limit per file, in MiB; the browser uses the server's configured value. |
 | `upload_pasta` | `"_recebidos_portal"` | Upload subfolder inside the space's folder; keep it a simple, relative name. |
 | `janela_contexto` | `1000000` | Denominator for the Claude Code context percentage. |
 | `cache_uso` | `~/.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json` | Optional cache for the Claude usage limit. |
@@ -158,6 +161,7 @@ From the repository root:
 
 ```bash
 python3 -m unittest discover -s tests -v
+node --test tests/*_js_check.js
 ```
 
 The tests use `tests/herdr_falso.py`, a temporary HOME, isolated configuration, fictional transcripts, and local ports. They do not need real herdr, agents, or Tailscale. They check authentication, code-based approval, cookies and headers, workspace hiding, conversation, limits, fingerprinted decisions, messages, and uploads, including interrupted transfers.
@@ -170,14 +174,14 @@ With Firefox available on the `PATH`, run:
 python3 scripts/gerar_imagens.py
 ```
 
-The script starts a server with fake herdr, collects API responses, and captures the interface using headless Firefox. It recreates the five PNGs in `docs/img`, without requiring real agent accounts.
+The script starts a server with fake herdr, collects API responses, and captures the interface using headless Firefox. It recreates the five PNGs in `docs/img`, without requiring real agent accounts. Run `IDIOMA=en python3 scripts/gerar_imagens.py` for the matching English images in `docs/img/en`. It also works through the test suite's in-memory HTTP transport when TCP is unavailable.
 
 ## Limitations
 
 - The interface is available in Portuguese and English and depends on the screen and data formats produced by the agents and herdr.
 - Chat and context status are read from Claude Code transcripts. Codex has a terminal and usage limits, without transcript-based chat in this implementation.
 - Claude limits come from the optional oh-my-claudecode cache. Codex limits come from recent local records. Cards may be missing or show outdated data; they do not query accounts directly.
-- Context is estimated from recorded usage; the percentage uses `janela_contexto`. The interface caption still refers to a window of 1 million tokens.
+- Context is estimated from recorded usage; both the percentage and caption use the configured `janela_contexto`.
 - Updates use periodic polling; the terminal is not a full interactive session. Available keys are restricted.
 - Secret masking is heuristic and does not replace reviewing what appears on screen. Uploads are not scanned for malware.
 
@@ -185,7 +189,22 @@ License: [MIT](LICENSE).
 
 ## Optional PC resources panel
 
-Disabled by default. Set `painel.enabled` to `true` in the private configuration and restart. Configure `painel.project_root` (absolute projects directory), `disk` (device name from `/proc/diskstats`, empty disables disk rates), `mounts` (filesystem paths), `job_state` (MGE-LocalCompute state JSON), `interval` (seconds, at least 1), `min_ram_gb`, `max_load` and `max_temp`. The panel expands `~` in its project and job-state paths; the other portal configuration paths still require absolute values.
+Disabled by default. Set `painel.enabled` to `true` in the private configuration and restart. The panel expands `~` in its project and job-state paths.
+
+| Key inside `painel` | Default | Purpose |
+| --- | --- | --- |
+| `enabled` | `false` | Enable the read-only panel. |
+| `project_root` | `~/projects` | Group processes by the first directory below this root. |
+| `disk` | `""` | Device from `/proc/diskstats` to measure; empty disables disk rates. |
+| `mounts` | `["/"]` | Filesystems to show. |
+| `job_state` | `~/.local/state/mge-localcompute/state.json` | Optional [MGE-LocalCompute](https://github.com/MrGoulart3/MGE-LocalCompute) integration; missing files or `""` yield no managed jobs. A compatible JSON contains `jobs` with `pid`, `threads`, `cwd`, and optional `paused`. |
+| `interval` | `3` | Sampling interval in seconds, minimum 1. |
+| `min_ram_gb` | `3` | Minimum available RAM in GiB for the capacity indicator. |
+| `max_load` | `5.5` | Maximum 1-minute load for the capacity indicator. |
+| `max_temp` | `85` | CPU package temperature ceiling in °C for the capacity indicator. |
+| `compute_commands` | `["xtb", "crest", "orca", "sella", "rodar_local"]` | Case-insensitive substrings for classifying compute processes. Existing tool names are kept for compatibility; replace with your programs or use `[]` to disable this category. `rodar_local` means “run locally”. |
+
+RAM, load, and temperature thresholds are configurable display defaults; the portal never changes thread counts or pauses jobs. Choose values for your hardware. CPU package/core parsing currently targets the Linux `coretemp` driver; other hardware may have unavailable readings. The capacity indicator is conservative when the package sensor is unavailable. Sensor thresholds use fallbacks of 85 °C (high) and 105 °C (critical); the temperature graph uses the critical threshold.
 
 After signing in, use **PC resources** in the portal header; it opens an authenticated `/painel` in another tab. The key is sent in request headers, never in the URL. Popups must be allowed. To reopen after a full browser refresh, return to `/spaces` and use the button again. `/painel` and `/api/estado` require the key; the public port also requires an approved device. When disabled, panel routes return 404.
 

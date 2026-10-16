@@ -13,6 +13,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
@@ -159,9 +160,10 @@ class PortalTest(unittest.TestCase):
         self.assertEqual(s, 200)
         self.assertTrue(d['epoca'])
         textos = ' '.join(e['x'] for e in d['itens'])
-        self.assertIn('capítulo 3', textos)
+        self.assertIn('guia de instalação', textos)
         self.assertNotIn('sk-demo-123456', textos, 'segredo mascarado')
         self.assertEqual(d['status']['ctx_pct'], 19)
+        self.assertEqual(d['status']['janela_contexto'], 1000000)
         self.assertEqual(d['limites']['codex_sem'], 27.0)
         s, d2, _ = self.req(False, 'GET', f"/api/conversa?pane=w1:p1&desde={d['n']}&epoca={d['epoca']}", h=self.K)
         self.assertEqual(d2['itens'], [])
@@ -207,6 +209,11 @@ class PortalTest(unittest.TestCase):
     def test_trocar_chave_exige_a_atual(self):
         self.assertEqual(self.req(False, 'POST', '/api/acesso/trocar-chave', {}, self.K)[0], 403)
 
+    def test_lista_informa_limite_de_upload(self):
+        status, data, _ = self.req(False, 'GET', '/api/spaces', h=self.K)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['upload_mb'], 25)
+
 
 class UnidadeTest(unittest.TestCase):
     def setUp(self):
@@ -221,13 +228,19 @@ class UnidadeTest(unittest.TestCase):
         self.assertIsNone(self.p.dialogo('só uma opção:\n❯ 1. Yes\n'))
 
     def test_dialogo_confianca(self):
-        d = self.p.dialogo(' Do you trust the files in this folder?\n\n /home/x/proj\n\n ❯ 1. Yes, proceed\n   2. No, exit\n')
+        d = self.p.dialogo(' Do you trust the files in this folder?\n\n /home/ana/projects/example\n\n ❯ 1. Yes, proceed\n   2. No, exit\n')
         self.assertEqual(len(d['opcoes']), 2)
         self.assertIn('trust', d['pergunta'])
 
     def test_mascara_e_nome_seguro(self):
         self.assertEqual(self.p.mascarar('senha: hunter22222 token=abcdefghij'), 'senha: *** token=***')
         self.assertEqual(self.p.nome_seguro('../../' + 'a' * 200 + '.pdf')[-4:], '.pdf')
+
+    def test_janela_contexto_configuravel(self):
+        with mock.patch.dict(self.p.CFG, janela_contexto=200000), mock.patch.object(self.p, 'read', return_value=''):
+            status = self.p.status_sessao({'ctx': 100000}, '', '')
+        self.assertEqual(status['ctx_pct'], 50)
+        self.assertEqual(status['janela_contexto'], 200000)
 
 
 if __name__ == '__main__':

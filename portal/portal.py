@@ -33,7 +33,7 @@ CONFIG_PADRAO = dict(
     hosts_permitidos=[],                            # vazio = não confere o Host
     ocultos_na_internet=[],                         # workspaces (id, rótulo ou /pasta) que a porta pública não mostra
     aviso_cmd=[],                                   # comando de aviso (ex.: ntfy): recebe título, mensagem, prioridade
-    copia_da_chave='',                              # arquivo extra onde gravar a chave nova (ex.: pasta do notebook)
+    copia_da_chave='',                              # arquivo extra opcional para a chave nova
     dias_aparelho=30,
     janela_contexto=1_000_000,
     cache_uso=str(Path.home() / '.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json'),
@@ -154,7 +154,7 @@ def trocar_token() -> str:
     gravar_privado(TOKEN_FILE, novo + '\n')
     if CFG.get('copia_da_chave'):
         try:
-            gravar_privado(Path(CFG['copia_da_chave']), f'Chave do Portal dos Spaces: {novo}\n')
+            gravar_privado(Path(CFG['copia_da_chave']), f'Chave do MGE-AgentPortal: {novo}\n')
         except OSError:
             pass
     return novo
@@ -439,7 +439,7 @@ def status_sessao(c: dict, sid: str, cwd: str) -> dict:
     """Linha de status do OMC reescrita a partir dos dados (não da tela)."""
     ctx = int(c.get('ctx', 0))
     out = dict(modelo=str(c.get('modelo', ''))[:60], modo=str(c.get('modo', ''))[:30], ctx=ctx,
-               ctx_pct=round(100 * ctx / CFG['janela_contexto']))
+               ctx_pct=round(100 * ctx / CFG['janela_contexto']), janela_contexto=CFG['janela_contexto'])
     try:
         uso = json.loads(read(Path(CFG['cache_uso'])))['data']
         out.update(cinco_h=_numero(uso.get('fiveHourPercent')), cinco_h_reset=str(uso.get('fiveHourResetsAt') or '')[:40])
@@ -697,7 +697,8 @@ class PortalMixin:
     def r_spaces(self, q):
         if self.authorized():
             campos = ('pane', 'workspace', 'agent', 'status', 'title')
-            self.json_reply(200, dict(spaces=[{k: r[k] for k in campos} for r in visiveis(self.public)], painel=bool(CFG.get('painel', {}).get('enabled'))))
+            self.json_reply(200, dict(spaces=[{k: r[k] for k in campos} for r in visiveis(self.public)],
+                                      painel=bool(CFG.get('painel', {}).get('enabled')), upload_mb=CFG['upload_mb']))
 
     def r_recados(self, q):
         if self.authorized() and (sp := self.pane_q(q)):

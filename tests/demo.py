@@ -27,12 +27,12 @@ PERMISSAO = """● Vou limpar a pasta de build antes de recompilar.
  │   3. No, and tell Claude what to do (esc)    │
  ╰──────────────────────────────────────────────╯"""
 
-TELA_TRABALHANDO = """● Li os três capítulos e marquei as figuras sem legenda.
+TELA_TRABALHANDO = """● Li os três guias e marquei os exemplos incompletos.
 
-● Bash(python3 scripts/conferir_refs.py capitulos/)
-  ⎿  42 referências conferidas, 2 sem DOI
+● Bash(python3 scripts/conferir_links.py docs/)
+  ⎿  42 links conferidos, 2 sem destino
 
-✻ Revisando o capítulo 3… (1m 12s · ↓ 4.1k tokens)
+✻ Revisando o guia de instalação… (1m 12s · ↓ 4.1k tokens)
 
 ────────────────────────────────────────────────────────────────────────
 ❯
@@ -58,18 +58,18 @@ def transcricao() -> str:
     tool = lambda nome, desc: {'type': 'tool_use', 'name': nome, 'input': {'description': desc}}
     linhas = [
         linha('permission-mode', None, permissionMode='auto'),
-        linha('user', '2026-10-13T13:02:10', message={'role': 'user', 'content': 'Revise o capítulo 3 da tese e confira as referências, por favor.'}),
-        linha('assistant', '2026-10-13T13:02:20', message=msg('assistant', texto('Combinado. Vou ler o capítulo 3, conferir as referências e listar o que precisa de ajuste.'))),
-        linha('assistant', '2026-10-13T13:02:31', message=msg('assistant', tool('Read', 'Ler capitulos/cap3.md'), tool('Bash', 'Conferir DOIs das referências'))),
+        linha('user', '2026-10-13T13:02:10', message={'role': 'user', 'content': 'Revise o guia de instalação e confira os links, por favor.'}),
+        linha('assistant', '2026-10-13T13:02:20', message=msg('assistant', texto('Combinado. Vou ler o guia de instalação, conferir os links e listar o que precisa de ajuste.'))),
+        linha('assistant', '2026-10-13T13:02:31', message=msg('assistant', tool('Read', 'Ler docs/instalacao.md'), tool('Bash', 'Conferir links da documentação'))),
         linha('assistant', '2026-10-13T13:04:02', message=dict(msg('assistant', texto(
-            'Terminei a primeira passada no capítulo 3:\n\n- **42 referências** conferidas; **2 estão sem DOI** (Silva 2019 e Costa 2021).\n'
-            '- A Figura 3.4 não tem legenda.\n- Na seção 3.2, o termo `energia livre` aparece com duas definições.\n\nQuer que eu corrija as duas referências e proponha a legenda?')),
+            'Terminei a primeira passada no guia de instalação:\n\n- **42 links** conferidos; **2 estão sem destino**.\n'
+            '- O exemplo de configuração está incompleto.\n- Na seção de requisitos, falta a versão mínima do Python.\n\nQuer que eu corrija os links e complete o exemplo?')),
             model='claude-opus-5-5', usage={'input_tokens': 4, 'cache_read_input_tokens': 182000, 'cache_creation_input_tokens': 3200})),
-        linha('user', '2026-10-13T13:05:40', message={'role': 'user', 'content': '[Recado do Ana pelo portal] Sim, corrija as duas e proponha a legenda da 3.4.'}),
-        linha('assistant', '2026-10-13T13:05:52', message=msg('assistant', tool('Edit', 'capitulos/cap3.md'), tool('Bash', 'export API_KEY=sk-demo-123456 && python3 scripts/doi.py'))),
+        linha('user', '2026-10-13T13:05:40', message={'role': 'user', 'content': '[Recado do Ana pelo portal] Sim, corrija os links e complete o exemplo.'}),
+        linha('assistant', '2026-10-13T13:05:52', message=msg('assistant', tool('Edit', 'docs/instalacao.md'), tool('Bash', 'export API_KEY=sk-demo-123456 && python3 scripts/conferir_links.py'))),
         linha('assistant', '2026-10-13T13:07:15', message=dict(msg('assistant', texto(
-            'Pronto: as duas referências agora têm DOI, e a legenda proposta para a Figura 3.4 é:\n\n'
-            '> Perfil de energia livre da reação, com os estados de transição TS1 e TS2.\n\nRevisando agora a seção 3.2.')),
+            'Pronto: os dois links agora têm destino, e o exemplo de configuração está completo.\n\n'
+            '> Use uma pasta de projetos e ajuste os endereços para sua máquina.\n\nRevisando agora a seção de requisitos.')),
             model='claude-opus-5-5', usage={'input_tokens': 4, 'cache_read_input_tokens': 191000, 'cache_creation_input_tokens': 900})),
     ]
     return '\n'.join(linhas) + '\n'
@@ -79,10 +79,10 @@ def montar(base: Path) -> dict:
     """Cria o ambiente em `base` e devolve {env, cfg, token, portas, estado}."""
     home = base / 'home'
     projetos = home / 'projetos'
-    for nome in ('paper-review', 'data-pipeline', 'site-docs', 'privado'):
+    for nome in ('docs-guide', 'data-pipeline', 'site-docs', 'privado'):
         (projetos / nome).mkdir(parents=True, exist_ok=True)
-    (home / '.claude/projects/proj-paper-review').mkdir(parents=True, exist_ok=True)
-    (home / f'.claude/projects/proj-paper-review/{SID}.jsonl').write_text(transcricao())
+    (home / '.claude/projects/proj-docs-guide').mkdir(parents=True, exist_ok=True)
+    (home / f'.claude/projects/proj-docs-guide/{SID}.jsonl').write_text(transcricao())
     (home / '.claude/plugins/oh-my-claudecode').mkdir(parents=True, exist_ok=True)
     (home / '.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json').write_text(json.dumps(
         {'data': {'fiveHourPercent': 38, 'fiveHourResetsAt': '2026-10-14T00:50:00Z'}}))
@@ -95,9 +95,9 @@ def montar(base: Path) -> dict:
         pane_id=pane, workspace_id=ws, agent=tipo, agent_status=status, cwd=str(projetos / pasta),
         terminal_title_stripped=titulo, agent_session={'value': sid})
     estado = dict(
-        workspaces=[dict(workspace_id='w1', label='paper-review'), dict(workspace_id='w2', label='data-pipeline'),
+        workspaces=[dict(workspace_id='w1', label='docs-guide'), dict(workspace_id='w2', label='data-pipeline'),
                     dict(workspace_id='w3', label='site-docs'), dict(workspace_id='w4', label='privado')],
-        agents=[agente('w1:p1', 'w1', 'claude', 'working', 'paper-review', 'Revisão do capítulo 3', SID),
+        agents=[agente('w1:p1', 'w1', 'claude', 'working', 'docs-guide', 'Revisão do guia de instalação', SID),
                 agente('w2:p1', 'w2', 'claude', 'blocked', 'data-pipeline', 'Recompilar o pipeline'),
                 agente('w3:p1', 'w3', 'claude', 'done', 'site-docs', 'Atualizar a documentação'),
                 agente('w2:p2', 'w2', 'codex', 'idle', 'data-pipeline', 'codex: testes do pipeline'),
