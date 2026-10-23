@@ -60,6 +60,7 @@ const T = {
     "chatWorking": "⏳ trabalhando…",
     "noMessages": "(sem mensagens)",
     "hideCard": "ocultar este cartão",
+    "dragCard": "arraste para mudar de lugar",
     "hideShort": "ocultar",
     "used": "% usados",
     "resets": " · renova ",
@@ -200,6 +201,7 @@ const T = {
     "chatWorking": "⏳ working…",
     "noMessages": "(no messages)",
     "hideCard": "hide this card",
+    "dragCard": "drag to move",
     "hideShort": "hide",
     "used": "% used",
     "resets": " · resets ",
@@ -502,20 +504,50 @@ function desenharChat(estado) {
   html = html || '<div class="work">' + esc(t('noMessages')) + '</div>';
   if (c.dataset.h !== html) { c.innerHTML = html; c.dataset.h = html; if (grudado) c.scrollTop = c.scrollHeight }
 }
-$('omc').onclick = e => {
+$('omc').onclick = $('omc2').onclick = e => {
   const k = e.target.dataset.fechar;
   if (k) ocultos.add(k); else if (e.target.dataset.restaurar) ocultos.clear(); else return;
   gravarS('portal_cartoes_ocultos', [...ocultos].join(',')); desenharStatus(ultSt, ultLim);
 };
+const ORDEM_PADRAO = {topo: ['claude5h', 'codex5h', 'codexsem', 'contexto'], baixo: ['modelo', 'sessao', 'modo']};
+let ordemCartoes = (() => { try { const o = JSON.parse(lerS('portal_cartoes_ordem') || 'null'); if (o && Array.isArray(o.topo) && Array.isArray(o.baixo)) return o } catch (e) {} return ORDEM_PADRAO })();
+let arrasto = null;
+function salvarOrdem() {
+  const zona = id => [...$(id).querySelectorAll('.st')].map(c => c.dataset.card), noDom = new Set([...zona('omc'), ...zona('omc2')]);
+  const fora = z => ordemCartoes[z].filter(k => !noDom.has(k));
+  ordemCartoes = {topo: [...zona('omc'), ...fora('topo')], baixo: [...zona('omc2'), ...fora('baixo')]};
+  gravarS('portal_cartoes_ordem', JSON.stringify(ordemCartoes));
+}
+document.addEventListener('pointerdown', e => {
+  const a = e.target.closest('.cartoes .alca'); if (!a) return;
+  e.preventDefault(); arrasto = {c: a.closest('.st'), id: e.pointerId};
+  arrasto.c.classList.add('arrastando'); document.body.classList.add('arrastando-cartao');
+  try { a.setPointerCapture(e.pointerId) } catch (_) {}
+});
+document.addEventListener('pointermove', e => {
+  if (!arrasto || e.pointerId !== arrasto.id) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY), z = el && el.closest('.cartoes'); if (!z) return;
+  const alvo = el.closest('.st');
+  if (alvo && alvo !== arrasto.c) { const r = alvo.getBoundingClientRect(); z.insertBefore(arrasto.c, e.clientX - r.left < r.width / 2 ? alvo : alvo.nextSibling) }
+  else if (!alvo && arrasto.c.parentNode !== z) z.insertBefore(arrasto.c, z.querySelector('.restaurar'));
+});
+function soltarCartao(e) {
+  if (!arrasto || e.pointerId !== arrasto.id) return;
+  arrasto.c.classList.remove('arrastando'); document.body.classList.remove('arrastando-cartao'); arrasto = null;
+  salvarOrdem(); $('omc').dataset.h = $('omc2').dataset.h = ''; desenharStatus(ultSt, ultLim);
+}
+document.addEventListener('pointerup', soltarCartao); document.addEventListener('pointercancel', soltarCartao);
 function barra(p) { p = num(p); const c = p >= 90 ? 'h' : p >= 70 ? 'w' : ''; return '<div class="mt"><i class="' + c + '" style="width:' + Math.max(0, Math.min(100, p)) + '%"></i></div>' }
 function desenharStatus(st, lim) {
   ultSt = st; ultLim = lim;
-  const o = $('omc'); if (!st && !lim) { o.hidden = true; return }
+  if (arrasto) return;
+  const o = $('omc'), o2 = $('omc2'); if (!st && !lim) { o.hidden = o2.hidden = true; return }
+  const C = {};
   const nomeModelo = m => { const x = String(m || '').match(/claude-([a-z]+)-(\d+)-(\d+)/); return x ? x[1][0].toUpperCase() + x[1].slice(1) + ' ' + x[2] + '.' + x[3] : (m || '?') };
   const dur = s => { if (!num(s)) return '?'; const m = Math.floor((Date.now() / 1000 - s) / 60); return m >= 1440 ? Math.floor(m / 1440) + ' d ' + Math.floor(m % 1440 / 60) + ' h' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min' };
   const quando = valor => { if (!valor) return '?'; const d = new Date(typeof valor === 'number' ? valor * 1000 : valor); if (isNaN(d)) return '?';
     const hoje = new Date().toDateString() === d.toDateString(); return hoje ? t('at') + d.toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit'}) : d.toLocaleDateString(locale(), {weekday: 'short', day: '2-digit', month: '2-digit'}) + ' ' + d.toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit'}) };
-  const card = (k, html) => ocultos.has(k) ? '' : '<div class="st" data-card="' + esc(k) + '"><button type="button" class="fechar" data-fechar="' + esc(k) + '" aria-label="' + esc(t('hideCard')) + '" title="' + esc(t('hideShort')) + '">✕</button>' + html + '</div>';
+  const card = (k, html) => ocultos.has(k) ? '' : C[k] = '<div class="st" data-card="' + esc(k) + '"><button type="button" class="fechar" data-fechar="' + esc(k) + '" aria-label="' + esc(t('hideCard')) + '" title="' + esc(t('hideShort')) + '">✕</button><span class="alca" title="' + esc(t('dragCard')) + '" aria-hidden="true">⠿</span>' + html + '</div>';
   const lc = (k, nome, pct, reset) => pct == null ? '' : card(k, '<small>' + esc(nome) + '</small><b>' + num(pct) + esc(t('used')) + '</b>' + esc(t('resets')) + esc(quando(reset)) + barra(pct));
   let h = '';
   if (st && ehConv()) h += card('modelo', '<small>' + esc(t('model')) + '</small><b>' + esc(nomeModelo(st.modelo)) + '</b>');
@@ -525,9 +557,14 @@ function desenharStatus(st, lim) {
     if (st.ferramentas != null) h += card('sessao', '<small>' + esc(t('session')) + '</small><b>' + esc(dur(st.inicio)) + '</b> · ' + num(st.ferramentas) + esc(t('actions')));
     h += card('modo', '<small>' + esc(t('mode')) + '</small><b>' + esc(st.modo === 'auto' ? t('automatic') : st.modo || '?') + '</b>' + (st.branch ? ' · git ' + esc(st.branch) : ''));
   }
-  if (ocultos.size) h += '<button type="button" class="b restaurar" data-restaurar="1" title="' + esc(t('restoreHelp')) + '">' + esc(t('restoreCards')) + ' (' + ocultos.size + ')</button>';
-  if (o.dataset.h !== h) { o.innerHTML = h; o.dataset.h = h }
-  o.hidden = !h;
+  const zonaDe = k => ordemCartoes.topo.includes(k) ? 'topo' : ordemCartoes.baixo.includes(k) ? 'baixo' : ORDEM_PADRAO.topo.includes(k) ? 'topo' : 'baixo';
+  const monta = z => [...ordemCartoes[z], ...Object.keys(C).filter(k => !ordemCartoes.topo.includes(k) && !ordemCartoes.baixo.includes(k) && zonaDe(k) === z)].filter(k => C[k]).map(k => C[k]).join('');
+  const h1 = monta('topo');
+  let h2 = monta('baixo');
+  if (ocultos.size) h2 += '<button type="button" class="b restaurar" data-restaurar="1" title="' + esc(t('restoreHelp')) + '">' + esc(t('restoreCards')) + ' (' + ocultos.size + ')</button>';
+  if (o.dataset.h !== h1) { o.innerHTML = h1; o.dataset.h = h1 }
+  if (o2.dataset.h !== h2) { o2.innerHTML = h2; o2.dataset.h = h2 }
+  o.hidden = !h1; o2.hidden = !h2;
 }
 // Messages mode: each user message with the FINAL reply of that turn (tool steps only counted)
 function desenharFio(estado) {

@@ -11,7 +11,7 @@ A web portal for chatting from any browser with AI agents, such as Claude Code a
 - Chat with Claude Code transcripts and a live terminal for Claude Code and Codex.
 - A card for answering decisions, including permissions and questions. A fingerprint identifies the displayed decision and prevents answering a card that has changed.
 - File uploads by selection, drag and drop, or pasting images; the paths of received files are included in the message to the agent.
-- Usage-limit cards: Claude 5 h, Codex 5 h, and weekly. Each card can be dismissed, and a button restores the cards.
+- Usage-limit cards: Claude 5 h, Codex 5 h, and weekly. Drag cards by their handles between the two areas; their order is saved in this browser. Each card can be dismissed, and a button restores the cards.
 - Claude/Codex/All filter, terminal history, font adjustments, and a mobile interface.
 - Bilingual interface (Portuguese/English): defaults to the browser language; the **PT | EN** selector in the header saves the preference in this browser.
 - Device approval and revocation, audit events, and key changes under **Access**.

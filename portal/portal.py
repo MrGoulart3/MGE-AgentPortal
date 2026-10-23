@@ -426,15 +426,17 @@ def dialogo(tela: str) -> dict | None:
         if m:
             opcoes.insert(0, dict(n=m.group(2), texto=m.group(3)[:160], marcada=bool(m.group(1))))
             fim = i
+        elif opcoes and re.fullmatch(r'[─━═╌\- ]+', linhas[i].strip()):
+            continue
         elif opcoes and linhas[i].strip() and not linhas[i].startswith('    '):
             break
     if len(opcoes) < 2 or [o['n'] for o in opcoes] != [str(k) for k in range(1, len(opcoes) + 1)]:
         return None
     pergunta = []
     for linha in reversed(linhas[max(0, fim - 12):fim]):
-        t = linha.strip(' │┃|╭╮╰╯─')
-        if t and re.fullmatch(r'[─━\-═╌╭╮╰╯ ]+', t) and pergunta:
+        if pergunta and re.fullmatch(r'[─━\-═╌╭╮╰╯ ]+', linha.strip()):
             break
+        t = linha.strip(' │┃|╭╮╰╯─')
         if t:
             pergunta.insert(0, t)
     d = dict(pergunta='\n'.join(pergunta)[-1200:], opcoes=opcoes)

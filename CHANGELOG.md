@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-23
+
+- Fix AskUserQuestion separators while preserving permission dialogs / corrige separadores do AskUserQuestion preservando diálogos de permissão.
+- Draggable status cards in two zones with saved order and bilingual handles / cartões de status arrastáveis em duas áreas com ordem salva e alças bilíngues.
+
 ## 2026-10-22
 
 ### Added / Adicionado

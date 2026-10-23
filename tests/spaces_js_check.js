@@ -8,7 +8,8 @@ function element(id) {
   if (!elements.has(id)) elements.set(id, {value:'', dataset:{}, style:{}, hidden:true, textContent:'', innerHTML:'', classList:{toggle(){}}, setAttribute(){}, addEventListener(){}, querySelector(){return null;}});
   return elements.get(id);
 }
-const storage = {getItem(){return null;}, setItem(){}, removeItem(){}};
+const saved = new Map();
+const storage = {getItem(k){return saved.get(k) ?? null;}, setItem(k,v){saved.set(k,v);}, removeItem(k){saved.delete(k);}};
 let limit = 40;
 const context = vm.createContext({
   document:{getElementById:element, querySelector:element, querySelectorAll(){return [];}, addEventListener(){}, documentElement:{}},
@@ -31,5 +32,32 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, '../portal/web/spaces.js'),
     vm.runInContext(`idioma='${language}'; desenharStatus({ctx:100000,ctx_pct:50,janela_contexto:200000},null)`, context);
     assert.ok(element('omc').innerHTML.includes(caption));
   }
+  const keys = id => [...element(id).innerHTML.matchAll(/data-card="([^"]+)"/g)].map(m => m[1]);
+  vm.runInContext(`idioma='en'; desenharStatus({ctx:100000,ctx_pct:50,ferramentas:3}, {claude_5h:10,codex_5h:20,codex_sem:30})`, context);
+  assert.deepEqual(keys('omc'), ['claude5h', 'codex5h', 'codexsem', 'contexto']);
+  assert.deepEqual(keys('omc2'), ['modelo', 'sessao', 'modo']);
+  assert.ok(element('omc').innerHTML.includes('title="drag to move"'));
+  vm.runInContext("idioma='pt'; desenharStatus(ultSt,ultLim)", context);
+  assert.ok(element('omc2').innerHTML.includes('title="arraste para mudar de lugar"'));
+  const html = fs.readFileSync(path.join(__dirname, '../portal/web/spaces.html'), 'utf8');
+  assert.match(html, /id="chat"[^>]*><\/div>\s*<div id="omc" class="cartoes" data-zona="topo"/);
+  assert.match(html, /id="omc2" class="cartoes" data-zona="baixo"/);
+  vm.runInContext("ordemCartoes={topo:['modelo','contexto'],baixo:['codexsem','claude5h','codex5h','sessao','modo']}; ocultos.add('codexsem'); desenharStatus(ultSt,ultLim)", context);
+  assert.deepEqual(keys('omc'), ['modelo', 'contexto']);
+  assert.deepEqual(keys('omc2'), ['claude5h', 'codex5h', 'sessao', 'modo']);
+  assert.ok(element('omc2').innerHTML.includes('data-restaurar="1"'));
+  assert.ok(!element('omc').innerHTML.includes('data-restaurar="1"'));
+  for (const id of ['omc', 'omc2']) element(id).querySelectorAll = () => keys(id).map(card => ({dataset:{card}}));
+  vm.runInContext('salvarOrdem()', context);
+  const order = JSON.parse(saved.get('portal_cartoes_ordem'));
+  assert.deepEqual(order.topo, ['modelo', 'contexto']);
+  assert.deepEqual(order.baixo, ['claude5h', 'codex5h', 'sessao', 'modo', 'codexsem']);
+  const before = element('omc').innerHTML;
+  vm.runInContext('arrasto={}; desenharStatus({ctx:1},null)', context);
+  assert.equal(element('omc').innerHTML, before);
+  vm.runInContext("arrasto=null; ocultos.clear(); desenharStatus({ctx:100000}, {codex_sem:30})", context);
+  assert.ok(keys('omc2').includes('codexsem'));
+  vm.runInContext('desenharStatus(null,null)', context);
+  assert.ok(element('omc').hidden && element('omc2').hidden);
   console.log('Configured uploads and bilingual context rendering: OK');
 })().catch(error => {console.error(error); process.exitCode=1;});

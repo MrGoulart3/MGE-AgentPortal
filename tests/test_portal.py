@@ -251,6 +251,25 @@ class UnidadeTest(unittest.TestCase):
         self.assertIsNone(self.p.dialogo('texto normal\nsem opções\n'))
         self.assertIsNone(self.p.dialogo('só uma opção:\n❯ 1. Yes\n'))
 
+    def test_dialogo_com_separador(self):
+        tela = (
+            '──────\n ☐ Cores\n\nWhich page?\n\n'
+            '❯ 1. Servers (Recommended)\n     desc\n'
+            '  2. PC panel\n     desc\n  3. Both\n     desc\n'
+            '  4. Type something.\n──────\n  5. Chat about this\n\n'
+            'Enter to select · ↑/↓ to navigate · Esc to cancel'
+        )
+        d = self.p.dialogo(tela)
+        self.assertEqual(len(d['opcoes']), 5)
+        self.assertTrue(d['opcoes'][0]['marcada'])
+        self.assertEqual(d['pergunta'], '☐ Cores\nWhich page?')
+
+    def test_dialogo_permissao(self):
+        d = self.p.dialogo('Do you want to proceed?\n❯ 1. Yes\n  2. No')
+        self.assertEqual(d['pergunta'], 'Do you want to proceed?')
+        self.assertEqual([o['texto'] for o in d['opcoes']], ['Yes', 'No'])
+        self.assertTrue(d['opcoes'][0]['marcada'])
+
     def test_dialogo_confianca(self):
         d = self.p.dialogo(' Do you trust the files in this folder?\n\n /home/ana/projects/example\n\n ❯ 1. Yes, proceed\n   2. No, exit\n')
         self.assertEqual(len(d['opcoes']), 2)

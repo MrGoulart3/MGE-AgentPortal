@@ -11,7 +11,7 @@ Portal web para conversar de qualquer navegador com agentes de IA, como Claude C
 - Chat com a transcrição do Claude Code e terminal ao vivo para Claude Code e Codex.
 - Cartão para responder decisões, incluindo permissões e perguntas. A impressão digital identifica a decisão exibida e impede responder a um cartão que mudou.
 - Envio de arquivos por seleção, arrastar e soltar ou colar imagens; os caminhos dos arquivos recebidos seguem no recado ao agente.
-- Cartões de limites de uso: Claude 5 h, Codex 5 h e semana. Cada cartão pode ser fechado e há um botão para restaurar os cartões.
+- Cartões de limites de uso: Claude 5 h, Codex 5 h e semana. Arraste os cartões pelas alças entre as duas áreas; a ordem fica salva neste navegador. Cada cartão pode ser fechado e há um botão para restaurar os cartões.
 - Filtro Claude/Codex/Todos, histórico do terminal, ajustes de fonte e interface para celular.
 - Interface bilíngue (português/inglês): usa o idioma do navegador por padrão; o seletor **PT | EN** no cabeçalho salva a preferência neste navegador.
 - Aprovação e revogação de aparelhos, auditoria e troca de chave em **Acessos**.
