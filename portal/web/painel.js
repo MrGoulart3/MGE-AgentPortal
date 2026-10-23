@@ -1,14 +1,15 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const T = {
-  en: {title:'PC resources', subtitle:'Read only · live resource samples', portal:'Agent Portal', capacity:'Capacity', memory:'Memory', temperature:'CPU temperature', disk:'Storage and I/O', network:'Network', spaces:'Resources per workspace', processes:'Processes', rss:'CPU: 100% = one core. RAM sums RSS; shared pages may be counted twice.', privacy:'Only executable basenames; no accounts, command arguments or working directory paths.', all:'All workspaces', unknown:'Unavailable', ok:'OK', tight:'Tight', jobs:'Managed jobs', paused:'Paused', active:'Running', stale:'Stale record', login:'Open the Agent Portal and authenticate again.', disconnected:'Disconnected · retrying', updated:'Updated', load:'Load 1/5/15 min', available:'Available', swap:'Swap', clamp:'Power clamp active', uptime:'Uptime', read:'Read', write:'Write', count:'processes', pid:'PID', space:'Workspace', name:'Name', cpu:'CPU', ram:'RAM', seconds:'Elapsed', command:'Executable', now:'now', history:'History'},
-  pt: {title:'Recursos do PC', subtitle:'Somente leitura · amostras ao vivo', portal:'Portal dos agentes', capacity:'Capacidade', memory:'Memória', temperature:'Temperatura da CPU', disk:'Disco e I/O', network:'Rede', spaces:'Recursos por workspace', processes:'Processos', rss:'CPU: 100% = um núcleo. RAM soma RSS; páginas compartilhadas podem contar duas vezes.', privacy:'Só nomes de executáveis; sem contas, argumentos de comandos ou caminhos de trabalho.', all:'Todos os workspaces', unknown:'Indisponível', ok:'OK', tight:'Apertada', jobs:'Jobs gerenciados', paused:'Pausado', active:'Rodando', stale:'Registro obsoleto', login:'Abra o portal dos agentes e autentique novamente.', disconnected:'Sem conexão · tentando novamente', updated:'Atualizado', load:'Carga 1/5/15 min', available:'Disponível', swap:'Swap', clamp:'Power-clamp ativo', uptime:'Ligado há', read:'Leitura', write:'Escrita', count:'processos', pid:'PID', space:'Workspace', name:'Nome', cpu:'CPU', ram:'RAM', seconds:'Tempo', command:'Executável', now:'agora', history:'Histórico'}
+  en: {title:'PC resources', subtitle:'Read only · live resource samples', portal:'Agent Portal', capacity:'Capacity', memory:'Memory', temperature:'CPU temperature', disk:'Storage and I/O', network:'Network', spaces:'Resources per workspace', processes:'Processes', rss:'CPU: 100% = one core. RAM sums RSS; shared pages may be counted twice.', privacy:'Only executable basenames; no accounts, command arguments or working directory paths.', all:'All workspaces', unknown:'Unavailable', ok:'OK', tight:'TIGHT', full:'FULL', jobs:'Managed jobs', paused:'Paused', active:'Running', stale:'Stale record', login:'Open the Agent Portal and authenticate again.', disconnected:'Disconnected · retrying', updated:'Updated', load:'Load 1/5/15 min', available:'Available', swap:'Swap', clamp:'Power clamp active', uptime:'Uptime', read:'Read', write:'Write', count:'processes', pid:'PID', space:'Workspace', name:'Name', cpu:'CPU', ram:'RAM', seconds:'Elapsed', command:'Executable', now:'now', history:'History'},
+  pt: {title:'Recursos do PC', subtitle:'Somente leitura · amostras ao vivo', portal:'Portal dos agentes', capacity:'Capacidade', memory:'Memória', temperature:'Temperatura da CPU', disk:'Disco e I/O', network:'Rede', spaces:'Recursos por workspace', processes:'Processos', rss:'CPU: 100% = um núcleo. RAM soma RSS; páginas compartilhadas podem contar duas vezes.', privacy:'Só nomes de executáveis; sem contas, argumentos de comandos ou caminhos de trabalho.', all:'Todos os workspaces', unknown:'Indisponível', ok:'OK', tight:'APERTADO', full:'LOTADO', jobs:'Jobs gerenciados', paused:'Pausado', active:'Rodando', stale:'Registro obsoleto', login:'Abra o portal dos agentes e autentique novamente.', disconnected:'Sem conexão · tentando novamente', updated:'Atualizado', load:'Carga 1/5/15 min', available:'Disponível', swap:'Swap', clamp:'Power-clamp ativo', uptime:'Ligado há', read:'Leitura', write:'Escrita', count:'processos', pid:'PID', space:'Workspace', name:'Nome', cpu:'CPU', ram:'RAM', seconds:'Tempo', command:'Executável', now:'agora', history:'Histórico'}
 };
 function stored(key) { try { return sessionStorage.getItem(key) || localStorage.getItem(key) || ''; } catch (_) { return ''; } }
 let language = stored('portal_idioma') || ((navigator.language || '').startsWith('pt') ? 'pt' : 'en');
 if (!T[language]) language = 'en';
 const transientKey = window.portalPanelKey || '';
 const transientDevice = window.portalPanelDevice || '';
+window.portalNavigationKey = transientKey; window.portalNavigationDevice = transientDevice;
 delete window.portalPanelKey; delete window.portalPanelDevice;
 let state = null;
 let sort = 'cpu';
@@ -44,6 +45,7 @@ function applyLanguage() {
   document.title = t('title');
   document.querySelectorAll('[data-i18n]').forEach(element => { element.textContent = t(element.dataset.i18n); });
   document.querySelectorAll('[data-lang]').forEach(element => { element.setAttribute('aria-pressed', String(element.dataset.lang === language)); });
+  window.dispatchEvent?.(new Event('portal-language'));
   if (state) render();
 }
 const columns = ['pid','space','name','cpu','ram','seconds','command'];
@@ -60,12 +62,22 @@ function renderSpaces() {
 }
 function render() {
   const s = state, memory = s.memory, thermal = s.thermal;
+  const temp = thermal.package ?? s.temperature;
+  const thresholds = {temp_warn:75,temp_full:85,cpu_warn:80,cpu_full:95,ram_warn:80,ram_full:95,...s.thresholds};
+  const color = (value,key) => value >= thresholds[key+'_full'] ? '#d13b3b' : value >= thresholds[key+'_warn'] ? '#c98a00' : '#1f8a46';
+  const ramPercent = memory.used / Math.max(1,memory.total) * 100;
+  if (window.PortalRings) $('quick').innerHTML =
+    window.PortalRings.card(t('temperature'),temp ?? 0,temp == null ? t('unknown') : thresholds.temp_warn + ' / ' + thresholds.temp_full + ' °C', {text:temp == null ? '—' : temp.toFixed(0),unit:'°C',color:color(temp,'temp')}) +
+    window.PortalRings.card('CPU',s.cpu.cpu,pct(s.cpu.cpu),{color:color(s.cpu.cpu,'cpu')}) +
+    window.PortalRings.card(t('memory'),ramPercent,bytes(memory.available)+' '+t('available'),{color:color(ramPercent,'ram')}) +
+    window.PortalRings.card(t('capacity'),s.capacity === 'full' ? 100 : s.capacity === 'tight' ? 70 : 25,t('jobs')+': '+s.jobs.length,{text:t(s.capacity),unit:'',color:s.capacity === 'full' ? '#d13b3b' : s.capacity === 'tight' ? '#c98a00' : '#1f8a46'});
+  $('thermal-details').textContent = Object.entries(thermal.cores || {}).map(([name,value]) => name + ': ' + value.toFixed(1) + ' °C').join(' · ') + ' · ' + (thermal.high ?? thresholds.temp_warn) + ' / ' + (thermal.crit ?? thresholds.temp_full) + ' °C';
   $('cpu').textContent = pct(s.cpu.cpu);
   $('load').textContent = t('load') + ': ' + s.load.map(value => value.toFixed(2)).join(' / ');
   $('cores').innerHTML = Object.entries(s.cpu).filter(([key]) => key !== 'cpu').map(([key,value]) => '<div>' + esc(key) + ' ' + pct(value) + bar(value,100) + '</div>').join('');
   $('memory').textContent = bytes(memory.used) + ' / ' + bytes(memory.total);
   $('memdetail').textContent = t('available') + ' ' + bytes(memory.available) + ' · ' + t('swap') + ' ' + bytes(memory.swap);
-  $('temperature').textContent = thermal.package == null ? t('unknown') : thermal.package.toFixed(1) + ' °C';
+  $('temperature').textContent = temp == null ? t('unknown') : temp.toFixed(1) + ' °C';
   $('clamp').textContent = thermal.clamped ? t('clamp') + ': ' + thermal.powerclamp + '%' : '';
   $('disks').innerHTML = s.disks.map(row => esc(row.mount) + ' · ' + bytes(row.used) + ' / ' + bytes(row.total) + bar(row.used,row.total)).join('');
   $('io').textContent = t('read') + ' ' + bytes(s.rates.disk_read) + '/s · ' + t('write') + ' ' + bytes(s.rates.disk_write) + '/s';

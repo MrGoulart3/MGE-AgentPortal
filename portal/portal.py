@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections import OrderedDict, deque
 import fcntl
+import file_store
 import hashlib
 import hmac
 import json
@@ -783,6 +784,8 @@ class PortalMixin:
             ('POST', '/api/depois/agora'): self.r_depois_agora,
             ('POST', '/api/enviar'): self.r_enviar, ('POST', '/api/tecla'): self.r_tecla,
             ('POST', '/api/arquivo'): self.r_arquivo,
+            ('POST', '/api/files/upload'): self.r_arquivo,
+            ('GET', '/api/files'): self.r_files, ('GET', '/api/files/download'): self.r_download,
             ('POST', '/api/acesso/pedir'): self.r_pedir, ('GET', '/api/acesso/estado'): self.r_estado,
             ('GET', '/api/acesso/lista'): self.r_lista, ('POST', '/api/acesso/decidir'): self.r_decidir,
             ('POST', '/api/acesso/revogar'): self.r_revogar, ('POST', '/api/acesso/esquecer'): self.r_esquecer,
@@ -946,11 +949,15 @@ class PortalMixin:
         """Recebe um arquivo (corpo cru) e salva em <pasta do space>/_recebidos_portal/."""
         if not (self.authorized() and (sp := self.pane_q(q))):
             return
-        nome = nome_seguro(q.get('nome', [''])[0])
+        try:
+            nome = (nome_seguro(q.get('nome', [''])[0]) if urlsplit(self.path).path == '/api/arquivo'
+                    else file_store.filename(q.get('nome', [''])[0]))
+        except ValueError:
+            return self.json_reply(400, dict(erro='Invalid filename / Nome inválido'))
         ext = Path(nome).suffix.lower()
         if ext not in UPLOAD_EXT:
             return self.json_reply(415, dict(erro=f'tipo de arquivo não permitido ({ext or "sem extensão"})'))
-        n = self.tamanho(int(CFG['upload_mb']) * 1024 * 1024)
+        n = self.tamanho(int(CFG.get('files', {}).get('max_mb', CFG['upload_mb'])) * 1024 * 1024)
         if n is None:
             return
         if n == 0:
@@ -958,9 +965,13 @@ class PortalMixin:
         cwd = Path(sp['cwd'])
         if not cwd.is_dir():
             return self.json_reply(409, dict(erro='pasta do space indisponível'))
-        pasta = cwd / CFG['upload_pasta']
+        try:
+            options = CFG if urlsplit(self.path).path != '/api/arquivo' else {**CFG, 'files': {}}
+            pasta = file_store.folder(str(cwd), sp['workspace'], options, 'inbox')
+        except ValueError:
+            return self.json_reply(400, dict(erro='Invalid folder / Pasta inválida'))
         if not pasta.exists():
-            pasta.mkdir(mode=0o700)
+            pasta.mkdir(mode=0o700, parents=True)
             (pasta / '.gitignore').write_text('*\n')      # uploads nunca entram no git do projeto
         destino = pasta / f"{time.strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(2)}_{nome}"
         parcial = destino.with_name('.' + destino.name + '.part')
@@ -978,6 +989,50 @@ class PortalMixin:
         registrar(sp['pane'], 'arquivo', destino.name, self.nome_aparelho())
         auditar('arquivo', self.cliente(), self.nome_aparelho(), f"{sp['workspace']}: {destino.name} ({n} B)")
         self.json_reply(200, dict(ok=True, caminho=str(destino), nome=destino.name))
+
+    def r_files(self, q):
+        """List only visible workspaces and plain files from their configured folders."""
+        if not self.authorized():
+            return
+        rows = []
+        for sp in visiveis(self.public):
+            files = []
+            for kind in ('inbox', 'outbox'):
+                try:
+                    root = file_store.folder(sp['cwd'], sp['workspace'], CFG, kind)
+                    for path in sorted(root.iterdir()):
+                        if not path.name.startswith('.') and not path.is_symlink() and path.is_file():
+                            files.append(dict(name=path.name, kind=kind, size=path.stat().st_size))
+                except (OSError, ValueError):
+                    continue
+            rows.append(dict(pane=sp['pane'], workspace=sp['workspace'], agent=sp['agent'], files=files))
+        self.json_reply(200, dict(workspaces=rows, max_mb=CFG.get('files', {}).get('max_mb', CFG['upload_mb'])))
+
+    def r_download(self, q):
+        """Download a single authorized workspace file as an attachment."""
+        if not (self.authorized() and (sp := self.pane_q(q))):
+            return
+        kind = q.get('kind', ['outbox'])[0]
+        if kind not in ('inbox', 'outbox'):
+            return self.json_reply(400, dict(erro='Invalid folder / Pasta inválida'))
+        try:
+            root = file_store.folder(sp['cwd'], sp['workspace'], CFG, kind)
+            name = file_store.filename(q.get('name', [''])[0])
+            stream = file_store.open_download(root, name)
+        except ValueError:
+            return self.json_reply(400, dict(erro='Invalid path / Caminho inválido'))
+        except OSError:
+            return self.json_reply(404, dict(erro='File unavailable / Arquivo indisponível'))
+        from urllib.parse import quote
+        with stream:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Disposition', "attachment; filename*=UTF-8''" + quote(name, safe=''))
+            self.send_header('Content-Length', str(os.fstat(stream.fileno()).st_size))
+            self.cabecalhos()
+            self.end_headers()
+            if self.command != 'HEAD':
+                shutil.copyfileobj(stream, self.wfile)
 
     # ------------- acessos
     def r_pedir(self, q):

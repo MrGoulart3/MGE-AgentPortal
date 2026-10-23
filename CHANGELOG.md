@@ -2,6 +2,12 @@
 
 ## 2026-10-23
 
+- Server detail identifies people and responsible names, groups programs/jobs and removes paths/commands from snapshots; configurable shared accounts and aliases / detalhe identifica pessoas e responsáveis, agrupa programas/jobs e remove pastas/comandos; contas compartilhadas e aliases configuráveis.
+
+- Configurable PC quick-look rings and sensor fallback / anéis rápidos configuráveis e suporte a sensores ausentes.
+- SSH server collector, scheduler jobs and 48-hour history / coletor SSH, jobs e histórico de 48 horas.
+- Authenticated workspace files, shared bilingual navigation and demo screenshots / arquivos autenticados por workspace, navegação bilíngue e imagens fictícias.
+
 - Fix AskUserQuestion separators while preserving permission dialogs / corrige separadores do AskUserQuestion preservando diálogos de permissão.
 - Draggable status cards in two zones with saved order and bilingual handles / cartões de status arrastáveis em duas áreas com ordem salva e alças bilíngues.
 

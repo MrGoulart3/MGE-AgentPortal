@@ -31,7 +31,7 @@ def capturar(pagina: Path, destino: Path, perfil: Path, largura: int, altura: in
     """Captura um PNG completo e encerra o navegador mesmo se ele não sair sozinho."""
     with (perfil / 'firefox.log').open('wb') as log:
         browser = subprocess.Popen(
-            ['firefox', '--headless', '--no-remote', '--profile', str(perfil),
+            ['/usr/bin/firefox', '--headless', '--no-remote', '--profile', str(perfil),
              f'--window-size={largura},{altura}', '--screenshot', str(destino), pagina.as_uri()],
             env={**os.environ, 'HOME': str(home), 'XDG_CACHE_HOME': str(perfil / 'cache'),
                  'MOZ_CRASHREPORTER_DISABLE': '1', 'GSETTINGS_BACKEND': 'memory'},
@@ -100,6 +100,10 @@ def main() -> None:
             acessos=api('/api/acesso/lista')[0],
             recados={'historico': [{'t': '2026-10-13 13:05:40', 'tipo': 'recado', 'texto': 'Sim, corrija os links e complete o exemplo.', 'aparelho': 'Celular'}]})
         dados['conversa']['estado'] = 'working'
+        if os.environ.get('DEMO_AUDIT_DIR'):
+            audit = Path(os.environ['DEMO_AUDIT_DIR']) / IDIOMA
+            audit.mkdir(parents=True, exist_ok=True)
+            (audit / 'portal.json').write_text(json.dumps(dados, ensure_ascii=False))
         cenas = [
             ('conversa.png', 1400, 950, dict(space='w1:p1', modo='conversa')),
             ('decisao.png', 1400, 950, dict(space='w2:p1', modo='vivo')),
@@ -110,7 +114,9 @@ def main() -> None:
         html = (RAIZ / 'portal/web/spaces.html').read_text()
         trabalho = base / 'web'
         trabalho.mkdir()
-        shutil.copy(RAIZ / 'portal/web/spaces.js', trabalho / 'spaces.js')
+        for source in (RAIZ / 'portal/web').iterdir():
+            if source.suffix in ('.js', '.css'):
+                shutil.copy(source, trabalho / source.name)
         SAIDA.mkdir(parents=True, exist_ok=True)
         for nome, w, h, cena in cenas:
             dados_cena = dict(dados)
@@ -133,13 +139,33 @@ def main() -> None:
                     "u.includes('/api/conversa')?D.conversa:u.includes('/api/tela')?D.telas[new URL(u,location.href).searchParams.get('pane')]:u.includes('/api/acesso/lista')?D.acessos:"
                     "u.includes('/api/recados')?D.recados:{});return {ok:true,status:200,headers:new Headers(),json:async()=>b}};%s</script>"
                     % (';'.join(js), json.dumps(dados_cena, ensure_ascii=False), falha403, resp, extra))
-            pagina = html.replace('<script src="/spaces.js"></script>', mock + '<script src="spaces.js"></script>')
+            pagina = html.replace('<script ', mock + '<script ', 1)
+            pagina = pagina.replace('src="/', 'src="').replace('href="/common.css', 'href="common.css').replace('href="/nav.css', 'href="nav.css')
             (trabalho / 'p.html').write_text(pagina)
             perfil = base / f'perfil_{nome}'
             perfil.mkdir()
             captura = base / nome
             capturar(trabalho / 'p.html', captura, perfil, w, h, d['home'])
             captura.replace(SAIDA / nome)
+            print('ok', nome)
+        extras = [('resources.png','painel',1400,1300), ('servers.png','servers',1400,1600),
+                  ('servers-detail.png','servers',1400,1000), ('files.png','files',1400,950), ('servers-mobile.png','servers',420,2000)]
+        fixture = dict(resources=demo.resource_snapshot(), servers={**demo.server_snapshot(), 'history':demo.server_history()}, files=api('/api/files')[0])
+        if os.environ.get('DEMO_AUDIT_DIR'):
+            (audit / 'pages.json').write_text(json.dumps(fixture, ensure_ascii=False))
+        for nome, page, width, height in extras:
+            source = (RAIZ / 'portal/web' / (page + '.html')).read_text()
+            setup = "localStorage.clear();localStorage.setItem('portal_chave','demo');localStorage.setItem('portal_idioma',%s);" % json.dumps(IDIOMA)
+            mock = '<script>' + setup + 'const DEMO=' + json.dumps(fixture, ensure_ascii=False) + ";window.fetch=async(u)=>({ok:true,status:200,json:async()=>u.includes('/api/estado')?DEMO.resources:u.includes('/api/servers')?DEMO.servers:DEMO.files});</script>"
+            source = source.replace('<script ', mock + '<script ', 1).replace('src="/', 'src="').replace('href="/common.css', 'href="common.css').replace('href="/nav.css', 'href="nav.css')
+            if nome == 'servers-detail.png':
+                source = source.replace('</body>', '<script>document.getElementById("summary").querySelector("[data-server]").click();</script></body>')
+            (trabalho / 'extra.html').write_text(source)
+            perfil = base / ('profile_' + nome)
+            perfil.mkdir()
+            capture = base / nome
+            capturar(trabalho / 'extra.html', capture, perfil, width, height, d['home'])
+            capture.replace(SAIDA / nome)
             print('ok', nome)
     finally:
         if memory:

@@ -221,11 +221,19 @@ class Collector:
                                  paused=bool(job.get('paused'))))
         except (ValueError, KeyError, TypeError):
             pass
-        self.capacity = 'ok' if (memory['available'] >= float(self.options.get('min_ram_gb', 3)) * 1024**3
-                                 and os.getloadavg()[0] <= float(self.options.get('max_load', 5.5))
-                                 and thermal['package'] is not None
-                                 and thermal['package'] < float(self.options.get('max_temp', 85))
-                                 and not thermal['clamped']) else 'tight'
+        thresholds = dict(temp_warn=75, temp_full=float(self.options.get('max_temp', 85)), cpu_warn=80, cpu_full=95,
+                          ram_warn=80, ram_full=95)
+        thresholds.update(self.options.get('thresholds', {}))
+        temperature = thermal['package'] if thermal['package'] is not None else max(temperatures, default=None)
+        readings = [('cpu', cpu.get('cpu', 0)),
+                    ('ram', memory['used'] / max(1, memory['total']) * 100)]
+        if temperature is not None:
+            readings.append(('temp', temperature))
+        full = any(value >= float(thresholds[key + '_full']) for key, value in readings)
+        tight = any(value >= float(thresholds[key + '_warn']) for key, value in readings)
+        tight = tight or memory['available'] < float(self.options.get('min_ram_gb', 3)) * 1024**3
+        tight = tight or os.getloadavg()[0] > float(self.options.get('max_load', 5.5))
+        self.capacity = 'full' if full or thermal['clamped'] else 'tight' if tight else 'ok'
         point = dict(time=time.time(), cpu=cpu.get('cpu', 0),
                      memory=memory['used'], temp=thermal['package'], **rates)
         self.history.append(point)
@@ -233,7 +241,7 @@ class Collector:
                     load=list(os.getloadavg()), uptime=uptime, disks=disks,
                     temperature=max(temperatures) if temperatures else None, thermal=thermal,
                     rates=rates, network=network, spaces=spaces, processes=processes,
-                    jobs=jobs, capacity=self.capacity, history=list(self.history),
+                    jobs=jobs, capacity=self.capacity, thresholds=thresholds, history=list(self.history),
                     inaccessible_cwd=denied, collector_pid=os.getpid())
 
     def run(self) -> None:

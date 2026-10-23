@@ -12,6 +12,7 @@ import signal
 import socket
 import subprocess
 import threading
+import time
 
 import portal
 import resources
@@ -84,6 +85,41 @@ class Handler(portal.PortalMixin, BaseHTTPRequestHandler):
         if not self.host_ok() or self.portal_route('GET'):
             return
         caminho = self.path.split('?', 1)[0]
+        pages = {'/servers': 'servers.html', '/servidores': 'servers.html',
+                 '/files': 'files.html', '/arquivos': 'files.html'}
+        if caminho in pages:
+            if self.authorized():
+                self.reply(200, (BASE / pages[caminho]).read_bytes(), 'text/html; charset=utf-8')
+            return
+        if caminho in ('/api/servers', '/api/servidores'):
+            if not self.authorized():
+                return
+            options = portal.CFG.get('servers', {})
+            try:
+                snapshot = json.loads(Path(options.get('snapshot', '~/.local/state/mge-agentportal/servers.json')).expanduser().read_text())
+                try:
+                    history = json.loads(Path(options.get('history', '~/.local/state/mge-agentportal/servers-history.json')).expanduser().read_text())
+                except (OSError, ValueError):
+                    history = []
+                snapshot['history'] = [point for point in history if point.get('timestamp', 0) >= time.time() - 48 * 3600]
+                for row in snapshot.get('servers', []):
+                    for key in ('processes', 'heavy_processes', 'jobs'):
+                        row[key] = [{k: v for k, v in item.items()
+                                     if k not in ('cwd', 'command', 'name')}
+                                    for item in row.get(key, [])]
+                snapshot['process_cpu_min'] = options.get('process_cpu_min', 5)
+                if self.public:
+                    allowed = {row['workspace'] for row in portal.visiveis(True)}
+                    for row in snapshot.get('servers', []):
+                        for key in ('processes', 'heavy_processes', 'jobs'):
+                            row[key] = [{k: v for k, v in item.items() if k not in ('cwd', 'command', 'owner')} for item in row.get(key, [])
+                                        if item.get('workspace') in allowed]
+                self.json_reply(200, snapshot)
+            except (OSError, ValueError):
+                self.json_reply(503, dict(erro='Run collector / Execute o coletor'))
+            return
+        if caminho == '/resources':
+            caminho = '/painel'
         if caminho in ('/painel', '/api/estado', '/painel.js'):
             if COLLECTOR is None:
                 self.send_error(404)
@@ -118,6 +154,10 @@ class Handler(portal.PortalMixin, BaseHTTPRequestHandler):
             self.send_header('Content-Length', '0')
             self.cabecalhos()
             self.end_headers()
+            return
+        if caminho in ('/nav.js', '/rings.js', '/pages.js', '/servers.js', '/files.js', '/common.css', '/nav.css'):
+            tipo = 'text/css' if caminho.endswith('.css') else 'text/javascript'
+            self.reply(200, (BASE / caminho[1:]).read_bytes(), tipo + '; charset=utf-8')
             return
         if caminho in ESTATICOS:
             nome, tipo = ESTATICOS[caminho]

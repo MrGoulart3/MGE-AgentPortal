@@ -44,6 +44,63 @@ Mobile use:
 
 The images are generated using the fictional scenario in `tests/demo.py`. Names, projects, devices, timestamps, and usage values in the demonstrations are sample data.
 
+## Resources, servers and files
+
+- Shared **Portal / Resources / Servers / Files** navigation, in English and Brazilian Portuguese.
+- Configurable SVG resource rings, remote SSH snapshots with 48-hour history, and authenticated workspace file transfer.
+
+### PC resources — `/resources` (also `/painel`)
+
+![CPU, RAM, temperature and local capacity](docs/img/en/resources.png)
+
+Enable `painel.enabled` in `config.json`. The existing local collector powers the quick-look temperature, CPU, RAM and capacity rings and the detailed process, thermal, storage and network views. `painel.thresholds` accepts `temp_warn` / `temp_full` (°C), `cpu_warn` / `cpu_full` and `ram_warn` / `ram_full` (%); defaults are **75/85, 80/95, 80/95**. Capacity is OK, TIGHT or FULL; `min_ram_gb` (default 3), `max_load` (5.5) and power-clamp status also affect it. Missing temperature sensors display unavailable and do not block CPU/RAM assessment. The legacy `max_temp` supplies the default `temp_full` when that threshold is absent.
+
+`painel.project_root`, `mounts`, `disk`, `job_state`, `compute_commands` and `interval` configure project attribution, storage, managed jobs, process classification and sampling. No sensor package is required. Authenticate in the Portal first; navigation opens the protected pages with the same credentials. Public access still requires an approved device and hides workspace details using `ocultos_na_internet`.
+
+### Servers — `/servers` (also `/servidores`)
+
+![Remote server capacity, workspaces and jobs](docs/img/en/servers.png)
+
+![Servers on mobile](docs/img/en/servers-mobile.png)
+
+The page reads `servers.snapshot` and `servers.history` JSON files, produced by the standalone standard-library collector. Configure `servers.hosts` with `name`, `ssh` (an existing SSH alias), optional `scheduler` (`none`, `pbs`, `slurm`) and optional `cores` override. There are no built-in hosts or accounts. `servers.users` lists owners counted as ours; `servers.workspaces` maps absolute remote path prefixes to workspace/agent labels (longest complete prefix wins). Either an owner or a path match counts as ours. `servers.timeout` defaults to 20 seconds; SSH uses BatchMode and ConnectTimeout, with a total subprocess limit of timeout + 10 seconds.
+
+The collector reads Linux load, online cores, memory, disks and processes grouped by working directory/owner; PBS (`qstat -f`) and Slurm (`squeue`) add jobs. Scheduler hosts use running allocated cores; hosts without a scheduler estimate used cores from load/process CPU. Scheduler totals cover the queue visible to the SSH account: use a host entry and cores override that represent that same scope. Process CPU from `ps` is a lifetime average, not an instantaneous measurement; inaccessible working directories remain unattributed unless the owner matches. No jobs are submitted or changed. The UI includes ours/others/free bars, disk warnings at ≥90%, workspace summaries, job filter chips and 48-hour CPU/memory sparklines. Blue ring segments represent ours. Snapshots older than 15 minutes are marked stale; unreachable hosts remain visible as unavailable.
+
+Copy and customize `config.example.json`, set up noninteractive SSH keys and known-host entries, then run:
+
+```sh
+python3 scripts/collect_servers.py --config /path/to/config.json
+```
+
+Example cron entry (every 5 minutes; use absolute paths and the same account that runs the portal):
+
+```cron
+*/5 * * * * /usr/bin/flock -n /tmp/mge-agentportal-collector.lock /usr/bin/python3 /path/to/MGE-AgentPortal/scripts/collect_servers.py --config /path/to/config.json
+```
+
+The collector creates the output directories, publishes snapshots atomically with mode 0600 and retains 48 hours in the history JSON. Keep collection serialized, as in the cron example. A missing snapshot yields an unavailable message, without preventing Portal or Files use. Remote command permissions determine what the SSH account can observe. Private access can show owner and working-directory details; public access exposes only visible workspace rows and strips owners and remote working paths.
+
+### Files — `/files` (also `/arquivos`)
+
+![Workspace inbox and deliveries](docs/img/en/files.png)
+
+`files.inbox` defaults to the existing `upload_pasta` (`_recebidos_portal`), and `files.outbox` defaults to `_portal_outbox`, relative to each workspace cwd. The example opts into `_portal_inbox`. `files.max_mb` defaults to `upload_mb` (25 MiB). Override `inbox` / `outbox` per workspace label under `files.workspaces`; administrator-configured absolute folders are also supported. Agents place deliveries directly into the outbox. Only immediate regular files are listed; hidden files, subfolders and symlinks are excluded. Downloads are attachments, never executable web content.
+
+Authenticated API: `GET /api/files`, `POST /api/files/upload?pane=…&nome=…` (raw file body), and `GET /api/files/download?pane=…&kind=inbox|outbox&name=…`. Uploads reuse the existing extension allowlist, bounded streaming and unique filenames. Traversal names and symlink folders/files are rejected; hidden public workspaces cannot be selected. The legacy `/api/arquivo` preserves filename sanitization and `upload_pasta` behavior for chat attachments. Store inboxes/outboxes outside version control; newly created inboxes get a `.gitignore`.
+
+### Reproduce the images and checks
+
+All screenshots use only the fictional scenario in `tests/demo.py`, including remote resources and local sensor values. With Firefox installed:
+
+```sh
+.vevn/bin/python scripts/gerar_imagens.py
+IDIOMA=en .vevn/bin/python scripts/gerar_imagens.py
+.vevn/bin/python -m unittest discover -s tests
+```
+
+Images go to `docs/img` (PT) and `docs/img/en` (EN), including `resources.png`, `servers.png`, `files.png` and `servers-mobile.png`. English screenshots also translate project descriptions. Tests use canned collector output and a real HTTP handler over in-memory streams when TCP is unavailable; they never SSH to real hosts.
+
 ## How it works
 
 The browser queries the portal API, which calls herdr to list agents, read the terminal, send messages, and press allowed keys. For Claude Code chat, the portal reads the local transcripts of its sessions.
@@ -215,3 +272,9 @@ After signing in, use **PC resources** in the portal header; it opens an authent
 The collector reads Linux CPU/per-core utilization, RAM/swap, load, temperature and power-clamp, disk/network rates, process groups by project, managed jobs and a bounded in-memory history. It does not read account names or expose command arguments and executable paths. The public response permits only project details mapped to visible portal workspaces and omits hidden/unmapped processes and jobs; filtering failures return 503. If hidden and visible nested workspaces share one top-level project, that entire project group is omitted. Global totals and history still include the whole machine. Private access shows all collected projects. Missing sensors, unreadable process directories or an unconfigured disk may leave some values unavailable. RSS sums can count shared pages more than once.
 
 The test suite automatically uses the real HTTP handler over in-memory byte streams when the environment blocks local TCP sockets. All route/body assertions still run, including interrupted uploads; listener binding, TCP concurrency and socket-level timeouts require a socket-enabled environment. The normal transport remains TCP where permitted.
+
+Click a server ring or card (Enter/Space also works) to see **who is running**: cores per person, responsible person, program and process count, memory and running time. Scheduler jobs are grouped by person and state, with job count, allocated cores and longest running time. `servers.process_cpu_min` keeps its default of `5`; the top 40 qualifying processes are grouped by person, responsible person and executable program. Collector helpers and shells are skipped.
+
+The identity-only privacy model replaces `servers.show_other_users`: all accounts remain visible, but no process working directories, command lines or scheduler job names are stored or returned, including for our own work. Old snapshots are stripped of those fields at the API boundary; regenerate them to remove old on-disk data. Configure `servers.accounts` as `{"lab": {"responsible": "Prof. Silva", "shared": true}, "guest": {"responsible": "Guest", "shared": false}}` and `servers.aliases` as `{"ana": "Ana", "bruno": "Bruno", "guest": "Guest"}`. Personal accounts use their aliased account name. Shared accounts use the first non-scratch person folder under `/home/<account>/` or `<base_dir>/<account>/`, searching the working directory then command arguments. Set `servers.base_dirs` for additional roots (for example `/srv/storage`); `scratch`, `g16_scratch`, `tmp`, `software`, `opt` and `bin` are ignored. Unknown people show `? (account)`. `servers.workspaces` maps complete path prefixes to workspace labels; matching work shows `servers.workspace_owner` plus the workspace. This prefix mapping alone determines workspace attribution. Responsible names come from accounts; aliases/account names provide the fallback. Scheduler jobs use their owner and working directory under the same rules. Re-run the collector after changing configuration.
+
+![Server usage detail](docs/img/en/servers-detail.png)

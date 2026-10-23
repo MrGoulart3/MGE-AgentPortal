@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 import demo
 import test_portal
@@ -29,6 +30,22 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual('codex', RESOURCES.category('node', 'node codex.js', collector.compute_commands))
         self.assertIsNone(collector.job_state)
         self.assertEqual([], collector.sample()['jobs'])
+
+    def test_thresholds_and_missing_sensors(self):
+        values = {'/proc/uptime': '120 0', '/proc/stat': 'cpu 10 0 10 80 0 0 0 0',
+                  '/proc/meminfo': 'MemTotal: 10000000 kB\nMemAvailable: 9000000 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB'}
+        collector = RESOURCES.Collector({'job_state': '', 'min_ram_gb': 0, 'mounts': []})
+        with mock.patch.object(RESOURCES, 'read', side_effect=lambda path: values.get(str(path), '')), \
+             mock.patch.object(Path, 'glob', return_value=[]), \
+             mock.patch.object(RESOURCES.os, 'getloadavg', return_value=(0, 0, 0)), \
+             mock.patch.object(collector, 'processes', return_value=([], 0)):
+            sample = collector.sample()
+            self.assertIsNone(sample['temperature'])
+            self.assertEqual(sample['capacity'], 'ok')
+            collector.options['thresholds'] = {'ram_warn': 5, 'ram_full': 90}
+            self.assertEqual(collector.sample()['capacity'], 'tight')
+            collector.options['thresholds']['ram_full'] = 8
+            self.assertEqual(collector.sample()['capacity'], 'full')
 
     def test_hides_unmapped_projects_processes_and_jobs_without_mutation(self):
         source = json.dumps({'spaces': {'proj-a': {}, 'hidden': {}, 'system/other': {}},

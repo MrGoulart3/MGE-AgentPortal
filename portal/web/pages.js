@@ -1,0 +1,29 @@
+'use strict';
+window.PortalPage = (() => {
+  const text = {
+    en:{coresHeader:'Cores',who:'Who',program:'Program (n proc.)',jobCount:'Jobs',runningFor:'Running for',longest:'Running for (longest)',usage:'who is running',user:'User',count:'Processes',ram:'RAM',cwd:'Working directory',command:'Command',close:'Close',noProcesses:'No heavy processes',heavyHint:'Heavy processes · CPU ≥',perUser:'Cores per person',servers:'Servers',files:'Files',serverSubtitle:'Remote capacity · read-only SSH snapshots',fileSubtitle:'Workspace inboxes and deliveries',ours:'Ours',others:'Others',free:'Free',cores:'cores',memory:'Memory',disks:'Disks',workspaces:'Per workspace',workspace:'Workspace',server:'Server',jobs:'Jobs and running processes',all:'All',running:'Running',queued:'Queued',name:'Name',owner:'Owner',state:'State',elapsed:'Elapsed',history:'48 h · used cores / memory %',offline:'Unavailable',updated:'Updated',stale:'Stale snapshot',login:'Authenticate again in the Portal.',error:'Unavailable · check configuration or run the collector',empty:'No files',inbox:'Inbox',outbox:'Deliveries',upload:'Upload',download:'Download',limit:'Maximum file size',choose:'Choose a workspace',success:'Upload complete',failed:'Request failed'},
+    pt:{coresHeader:'Núcleos',who:'Quem',program:'Programa (n proc.)',jobCount:'Jobs',runningFor:'Rodando há',longest:'Rodando há (maior)',usage:'quem está rodando',user:'Usuário',count:'Processos',ram:'RAM',cwd:'Pasta de trabalho',command:'Comando',close:'Fechar',noProcesses:'Nenhum processo pesado',heavyHint:'Processos pesados · CPU ≥',perUser:'Núcleos por pessoa',servers:'Servidores',files:'Arquivos',serverSubtitle:'Capacidade remota · coleta SSH somente leitura',fileSubtitle:'Entradas e entregas dos workspaces',ours:'Nossos',others:'Outros',free:'livres',cores:'núcleos',memory:'Memória',disks:'Discos',workspaces:'Por workspace',workspace:'Workspace',server:'Servidor',jobs:'Jobs e processos rodando',all:'Todos',running:'Rodando',queued:'Na fila',name:'Nome',owner:'Dono',state:'Estado',elapsed:'Tempo',history:'48 h · núcleos usados / memória %',offline:'Indisponível',updated:'Atualizado',stale:'Coleta desatualizada',login:'Entre novamente no Portal.',error:'Indisponível · confira a configuração ou execute o coletor',empty:'Nenhum arquivo',inbox:'Entrada',outbox:'Entregas',upload:'Enviar',download:'Baixar',limit:'Tamanho máximo por arquivo',choose:'Escolha um workspace',success:'Envio concluído',failed:'Falha na solicitação'}
+  };
+  const stored = key => { try { return sessionStorage.getItem(key) || localStorage.getItem(key) || ''; } catch (_) { return ''; } };
+  let lang = (stored('portal_idioma') || navigator.language || 'en').startsWith('pt') ? 'pt' : 'en';
+  const key = window.portalPanelKey || '', device = window.portalPanelDevice || '';
+  window.portalNavigationKey = key; window.portalNavigationDevice = device;
+  delete window.portalPanelKey; delete window.portalPanelDevice;
+  const t = name => text[lang][name] || name;
+  const headers = () => ({'X-Token':stored('portal_chave') || key, 'X-Device':stored('portal_aparelho') || device});
+  async function request(url, options = {}) {
+    const response = await fetch(url, {...options,headers:{...headers(),...options.headers},signal:AbortSignal.timeout(15000)});
+    if (!response.ok) throw Error([401,403,429].includes(response.status) ? t('login') : t('failed') + ' (' + response.status + ')');
+    return response;
+  }
+  function translate() {
+    document.documentElement.lang = lang === 'pt' ? 'pt-BR' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-lang]').forEach(el => { el.setAttribute('aria-pressed', String(el.dataset.lang === lang)); });
+    window.dispatchEvent(new Event('portal-language'));
+  }
+  document.querySelectorAll('[data-lang]').forEach(el => { el.onclick = () => { lang = el.dataset.lang; try { localStorage.setItem('portal_idioma',lang); } catch (_) {} translate(); window.dispatchEvent(new Event('portal-render')); }; });
+  const bytes = value => (Number(value || 0) / 1024 ** 3).toFixed(1) + ' GiB';
+  translate();
+  return {t,request,bytes,translate,dateTime:value=>new Date(value).toLocaleString(lang === 'pt' ? 'pt-BR' : 'en-US'),hasTranslation:name=>Object.hasOwn(text[lang],name),escape:window.PortalRings.escape};
+})();

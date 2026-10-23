@@ -31,6 +31,66 @@
     "interval": 3,
     "min_ram_gb": 3,
     "max_load": 5.5,
-    "max_temp": 85
+    "max_temp": 85,
+    "thresholds": {
+      "temp_warn": 75,
+      "temp_full": 85,
+      "cpu_warn": 80,
+      "cpu_full": 95,
+      "ram_warn": 80,
+      "ram_full": 95
+    }
+  },
+  "servers": {
+    "snapshot": "~/.local/state/mge-agentportal/servers.json",
+    "history": "~/.local/state/mge-agentportal/servers-history.json",
+    "timeout": 20,
+    "process_cpu_min": 5,
+    "workspaces": {
+      "/srv/projects/docs-guide": "docs-guide"
+    },
+    "hosts": [
+      {
+        "name": "lab-cluster-a",
+        "ssh": "lab-cluster-a",
+        "scheduler": "pbs",
+        "cores": 64
+      },
+      {
+        "name": "gpu-node",
+        "ssh": "gpu-node",
+        "scheduler": "none"
+      }
+    ],
+    "accounts": {
+      "lab": {
+        "responsible": "Prof. Silva",
+        "shared": true
+      },
+      "guest": {
+        "responsible": "Guest",
+        "shared": false
+      }
+    },
+    "aliases": {
+      "ana": "Ana",
+      "bruno": "Bruno",
+      "guest": "Guest"
+    },
+    "base_dirs": [
+      "/srv/storage"
+    ],
+    "workspace_owner": "Portal team"
+  },
+  "files": {
+    "inbox": "_portal_inbox",
+    "outbox": "_portal_outbox",
+    "max_mb": 25,
+    "workspaces": {
+      "docs-guide": {
+        "inbox": "_portal_inbox",
+        "outbox": "deliveries"
+      }
+    }
   }
 }

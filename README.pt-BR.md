@@ -44,6 +44,63 @@ Uso no celular:
 
 As imagens são geradas com o cenário fictício de `tests/demo.py`. Nomes, projetos, aparelhos, datas e valores de uso nas demonstrações são dados de exemplo.
 
+## Recursos, servidores e arquivos
+
+- Navegação compartilhada **Portal / Recursos / Servidores / Arquivos**, em português brasileiro e inglês.
+- Anéis SVG configuráveis, coleta remota por SSH com histórico de 48 horas e transferência autenticada de arquivos por workspace.
+
+### Recursos do PC — `/resources` (também `/painel`)
+
+![CPU, RAM, temperatura e capacidade local](docs/img/resources.png)
+
+Ative `painel.enabled` no `config.json`. O coletor local existente alimenta os anéis de temperatura, CPU, RAM e capacidade, além dos detalhes de processos, temperaturas, disco e rede. `painel.thresholds` aceita `temp_warn` / `temp_full` (°C), `cpu_warn` / `cpu_full` e `ram_warn` / `ram_full` (%); os padrões são **75/85, 80/95, 80/95**. A capacidade aparece como OK, APERTADO ou LOTADO; `min_ram_gb` (padrão 3), `max_load` (5,5) e power-clamp também influenciam. Sensores ausentes aparecem como indisponíveis e não impedem a avaliação de CPU/RAM. O antigo `max_temp` fornece o padrão de `temp_full` quando esse limiar estiver ausente.
+
+`painel.project_root`, `mounts`, `disk`, `job_state`, `compute_commands` e `interval` configuram atribuição por projeto, armazenamento, jobs gerenciados, classificação e intervalo. Não exige pacote de sensores. Entre primeiro no Portal; a navegação abre as páginas protegidas com as mesmas credenciais. O acesso público continua exigindo aparelho aprovado e oculta detalhes dos workspaces por `ocultos_na_internet`.
+
+### Servidores — `/servers` (também `/servidores`)
+
+![Capacidade remota, workspaces e jobs](docs/img/servers.png)
+
+![Servidores no celular](docs/img/servers-mobile.png)
+
+A página lê os JSONs `servers.snapshot` e `servers.history`, produzidos pelo coletor independente, que usa somente a biblioteca padrão. Configure `servers.hosts` com `name`, `ssh` (alias SSH existente), `scheduler` opcional (`none`, `pbs`, `slurm`) e `cores` opcional para sobrescrever a capacidade. Não há hosts ou contas embutidos. `servers.users` lista os donos considerados nossos; `servers.workspaces` associa prefixos absolutos remotos a nomes de workspace/agente (vence o prefixo completo mais específico). Basta corresponder ao dono ou ao caminho. `servers.timeout` tem padrão de 20 segundos; SSH usa BatchMode e ConnectTimeout, com limite total do subprocesso de timeout + 10 segundos.
+
+O coletor lê carga, núcleos online, memória, discos e processos Linux agrupados por pasta de trabalho/dono; PBS (`qstat -f`) e Slurm (`squeue`) acrescentam jobs. Hosts com escalonador usam núcleos alocados por jobs rodando; sem escalonador, estimam núcleos usados pela carga/CPU dos processos. Os totais do escalonador abrangem a fila visível à conta SSH: use uma entrada e capacidade que representem esse mesmo escopo. A CPU de `ps` é uma média desde o início do processo; pastas inacessíveis ficam sem atribuição, salvo correspondência do dono. Nenhum job é lançado ou alterado. A interface mostra barras nossos/outros/livres, alertas de disco em ≥90%, resumo por workspace, filtros de jobs e gráficos de CPU/memória das últimas 48 horas. O azul nos anéis representa nossos cálculos. Coletas com mais de 15 minutos ficam sinalizadas; hosts inacessíveis continuam aparecendo como indisponíveis.
+
+Copie e ajuste `config.example.json`, configure chaves SSH sem interação e entradas de hosts conhecidos e execute:
+
+```sh
+python3 scripts/collect_servers.py --config /caminho/config.json
+```
+
+Exemplo de cron (a cada 5 minutos; use caminhos absolutos e a mesma conta do portal):
+
+```cron
+*/5 * * * * /usr/bin/flock -n /tmp/mge-agentportal-collector.lock /usr/bin/python3 /caminho/MGE-AgentPortal/scripts/collect_servers.py --config /caminho/config.json
+```
+
+O coletor cria as pastas, publica snapshots atomicamente com modo 0600 e retém 48 horas no JSON de histórico. Serialize as execuções, como no cron acima. Snapshot ausente mostra indisponibilidade e não impede o uso do Portal ou de Arquivos. As permissões remotas determinam o que a conta SSH consegue observar. O acesso privado pode mostrar donos e pastas de trabalho; o público expõe apenas linhas de workspaces visíveis, removendo donos e caminhos remotos de trabalho.
+
+### Arquivos — `/files` (também `/arquivos`)
+
+![Entradas e entregas por workspace](docs/img/files.png)
+
+`files.inbox` usa por padrão o `upload_pasta` existente (`_recebidos_portal`); `files.outbox` tem padrão `_portal_outbox`, relativos à pasta de trabalho de cada workspace. O exemplo escolhe `_portal_inbox`. `files.max_mb` usa `upload_mb` como padrão (25 MiB). Sobrescreva `inbox` / `outbox` por nome de workspace em `files.workspaces`; pastas absolutas configuradas pelo administrador também são aceitas. Agentes colocam entregas diretamente no outbox. Só arquivos regulares imediatos são listados; arquivos ocultos, subpastas e symlinks ficam de fora. Downloads são anexos, nunca conteúdo web executável.
+
+API autenticada: `GET /api/files`, `POST /api/files/upload?pane=…&nome=…` (corpo bruto) e `GET /api/files/download?pane=…&kind=inbox|outbox&name=…`. O envio reutiliza extensões permitidas, streaming limitado e nomes únicos existentes. Nomes com travessia e pastas/arquivos symlink são rejeitados; workspaces ocultos na porta pública não podem ser selecionados. O antigo `/api/arquivo` preserva a sanitização do nome e `upload_pasta` dos anexos do chat. Mantenha inboxes/outboxes fora do controle de versão; inboxes criados recebem `.gitignore`.
+
+### Reproduzir imagens e verificações
+
+As imagens usam somente o cenário fictício de `tests/demo.py`, incluindo dados remotos e sensores locais. Com Firefox instalado:
+
+```sh
+.vevn/bin/python scripts/gerar_imagens.py
+IDIOMA=en .vevn/bin/python scripts/gerar_imagens.py
+.vevn/bin/python -m unittest discover -s tests
+```
+
+As saídas ficam em `docs/img` (PT) e `docs/img/en` (EN), incluindo `resources.png`, `servers.png`, `files.png` e `servers-mobile.png`. As imagens em inglês também traduzem as descrições dos projetos. Os testes usam saídas de coleta gravadas e o handler HTTP real com streams em memória quando TCP está indisponível; nunca fazem SSH para hosts reais.
+
 ## Como funciona
 
 O navegador consulta a API do portal, que chama o herdr para listar agentes, ler o terminal, enviar recados e pressionar teclas permitidas. Para o chat do Claude Code, o portal lê as transcrições locais de suas sessões.
@@ -215,3 +272,9 @@ Depois de entrar, use **Recursos do PC** no cabeçalho; ele abre `/painel` auten
 O coletor consulta CPU/por núcleo, RAM/swap, carga, temperatura/power-clamp, taxas de disco/rede, processos por projeto, jobs gerenciados e histórico limitado em memória. Não lê nomes de contas nem expõe argumentos ou caminhos de executáveis. A resposta pública permite só detalhes de projetos associados a workspaces visíveis e remove processos e jobs ocultos/desconhecidos; falha na filtragem retorna 503. Se workspaces visíveis e ocultos estiverem sob o mesmo projeto de primeiro nível, todo esse grupo fica oculto. Totais globais e histórico ainda incluem a máquina inteira. O acesso privado mostra todos os projetos coletados. Sensores ausentes, diretórios de processos ilegíveis ou disco não configurado podem deixar valores indisponíveis. Somas de RSS podem contar páginas compartilhadas mais de uma vez.
 
 Se o ambiente bloquear sockets TCP locais, a suíte usa automaticamente o handler HTTP real sobre fluxos de bytes em memória. Todas as verificações de rotas/corpos continuam, inclusive uploads interrompidos; listeners, concorrência TCP e timeouts de socket precisam de ambiente com sockets. Onde permitido, o transporte normal continua TCP.
+
+Clique em um anel ou cartão de servidor (também com Enter/Espaço) para ver **quem está rodando**: núcleos por pessoa, responsável, programa e quantidade de processos, memória e tempo de execução. Jobs do escalonador são agrupados por pessoa e estado, com quantidade, núcleos alocados e maior tempo de execução. `servers.process_cpu_min` mantém o padrão `5`; os 40 processos elegíveis de maior CPU são agrupados por pessoa, responsável e programa executável. Auxiliares do coletor e shells são ignorados.
+
+O modelo de privacidade por identidade substitui `servers.show_other_users`: todas as contas aparecem, mas pastas de processos, linhas de comando e nomes de jobs não são gravados nem retornados, inclusive para nosso trabalho. A API remove esses campos de snapshots antigos; gere novamente os arquivos para apagar dados antigos em disco. Configure `servers.accounts` como `{"lab": {"responsible": "Prof. Silva", "shared": true}, "guest": {"responsible": "Guest", "shared": false}}` e `servers.aliases` como `{"ana": "Ana", "bruno": "Bruno", "guest": "Guest"}`. Contas pessoais usam o alias da conta. Contas compartilhadas usam a primeira pasta de pessoa fora das pastas temporárias sob `/home/<account>/` ou `<base_dir>/<account>/`, buscando primeiro na pasta de trabalho e depois nos argumentos. Configure raízes adicionais em `servers.base_dirs` (por exemplo `/srv/storage`); `scratch`, `g16_scratch`, `tmp`, `software`, `opt` e `bin` são ignorados. Pessoas desconhecidas aparecem como `? (conta)`. `servers.workspaces` associa prefixos completos a nomes de workspace; correspondências mostram `servers.workspace_owner` mais o workspace. Somente esses prefixos atribuem o trabalho ao workspace. O responsável vem da configuração da conta; alias ou nome da conta são o fallback. Jobs usam dono e pasta de trabalho com as mesmas regras. Execute novamente o coletor após mudar a configuração.
+
+![Detalhe do uso do servidor](docs/img/servers-detail.png)

@@ -1,0 +1,1 @@
+.nav{display:flex;gap:8px;flex-wrap:wrap;background:var(--card);border-bottom:1px solid var(--line);padding:12px 20px}.nav a{padding:8px 12px;text-decoration:none;border-radius:8px}.nav a[aria-current]{background:var(--accent);color:#fff}@media(max-width:650px){.nav{padding:8px;gap:0}.nav a{padding:8px}}
