@@ -25,7 +25,9 @@ PRAZO_CABECALHOS = 20  # segundos para a linha de pedido + cabeçalhos chegarem 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'")
 ESTATICOS = {'/spaces': ('spaces.html', 'text/html'), '/spaces.html': ('spaces.html', 'text/html'),
-             '/spaces.js': ('spaces.js', 'text/javascript')}
+             '/spaces.js': ('spaces.js', 'text/javascript'), '/sw.js': ('sw.js', 'text/javascript'),
+             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json'),
+             '/icon192.png': ('icon192.png', 'image/png'), '/icon512.png': ('icon512.png', 'image/png')}
 
 
 class Handler(portal.PortalMixin, BaseHTTPRequestHandler):
@@ -119,10 +121,21 @@ class Handler(portal.PortalMixin, BaseHTTPRequestHandler):
             return
         if caminho in ESTATICOS:
             nome, tipo = ESTATICOS[caminho]
-            return self.reply(200, (BASE / nome).read_bytes(), f'{tipo}; charset=utf-8')
+            return self.reply(200, (BASE / nome).read_bytes(), tipo if tipo.startswith('image/') else f'{tipo}; charset=utf-8')
         self.send_error(404)
 
+    def do_HEAD(self) -> None:
+        self.do_GET()
+
     def do_POST(self) -> None:
+        if self.host_ok() and self.path.split('?', 1)[0] == '/share':
+            # share that arrived before the service worker was active: back to the portal without the files
+            self.send_response(303)
+            self.send_header('Location', '/spaces?shared=0')
+            self.send_header('Content-Length', '0')
+            self.cabecalhos()
+            self.end_headers()
+            return
         if self.host_ok() and not self.portal_route('POST'):
             self.send_error(404)
 

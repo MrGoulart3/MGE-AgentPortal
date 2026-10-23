@@ -364,6 +364,34 @@ def dialogo(tela: str) -> dict | None:
     return d
 
 
+_TELA: dict = {}   # pane -> (instante, tela): o portal consulta a cada 1,5 s; a tela basta a cada 4 s
+FILA_RE = re.compile(r'Press up to edit queued messages|ctrl\+enter to send now')
+DICA_RE = re.compile(r'Enter to (select|confirm|submit)|Esc to cancel|to navigate')
+
+
+def tela_recente(pane: str, ttl: float = 4.0) -> str:
+    t = _TELA.get(pane)
+    if t and time.monotonic() - t[0] < ttl:
+        return t[1]
+    tela = ler_tela(pane)
+    _TELA[pane] = (time.monotonic(), tela)
+    return tela
+
+
+def situacao(sp: dict) -> dict:
+    """Open decision (permission, AskUserQuestion) and message waiting in Claude's queue.
+    Decisão aberta (permissão, AskUserQuestion) e recado parado na fila do Claude."""
+    try:
+        tela = tela_recente(sp['pane'])
+    except (RuntimeError, subprocess.TimeoutExpired):   # acessório: nunca derruba a conversa
+        return {}
+    cauda_ = '\n'.join(tela.rstrip().split('\n')[-45:])
+    d = dialogo(tela)
+    if d and sp['status'] != 'blocked' and not (any(o['marcada'] for o in d['opcoes']) and DICA_RE.search(cauda_)):
+        d = None
+    return dict(dialogo=d, fila=bool(sp['status'] == 'working' and FILA_RE.search(cauda_)))
+
+
 # ---------------------------------------------------------------- conversa (transcrição do Claude Code)
 _CONV: OrderedDict = OrderedDict()
 _CONV_LOCKS: dict = {}
@@ -714,8 +742,8 @@ class PortalMixin:
                 '(o histórico só fica disponível quando o space para de trabalhar; mostrando a tela atual)\n\n' + ler_tela(pane)
         else:
             tela = ler_tela(pane)
-        dlg = dialogo(tela) if sp['status'] == 'blocked' else None
-        self.json_reply(200, dict(tela=tela, dialogo=dlg, historico=historico(pane), limites=limites()))
+        _TELA[pane] = (time.monotonic(), tela)
+        self.json_reply(200, dict(tela=tela, historico=historico(pane), limites=limites(), **situacao(sp)))
 
     def r_conversa(self, q):
         if not (self.authorized() and (sp := self.pane_q(q))):
@@ -732,11 +760,7 @@ class PortalMixin:
             dados['itens'] = [e for e in dados['itens'] if e['i'] > int(desde)]
         dados['estado'] = sp['status']
         dados['limites'] = limites()
-        if sp['status'] == 'blocked':
-            try:
-                dados['dialogo'] = dialogo(ler_tela(sp['pane']))
-            except RuntimeError:
-                pass
+        dados.update(situacao(sp))
         self.json_reply(200, dados)
 
     def r_enviar(self, q):

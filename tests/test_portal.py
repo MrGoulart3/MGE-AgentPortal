@@ -180,6 +180,18 @@ class PortalTest(unittest.TestCase):
         self.assertEqual(self.req(False, 'POST', '/api/tecla', {'pane': 'w2:p1', 'tecla': 'shift+tab'}, self.K)[0], 400)
         self.assertEqual(self.req(False, 'POST', '/api/enviar', {'pane': 'w2:p1', 'texto': 'oi'}, self.K)[0], 409)
 
+    def test_app_instalavel_e_compartilhar(self):
+        for caminho, tipo in (('/manifest.webmanifest', 'application/manifest+json'), ('/sw.js', 'text/javascript'), ('/icon192.png', 'image/png')):
+            s, _, r = self.req(False, 'GET', caminho)
+            self.assertEqual(s, 200, caminho)
+            self.assertTrue(r.getheader('Content-Type').startswith(tipo), caminho)
+        # share before the service worker is active: back to the portal, nothing stored / sem o SW: volta ao portal
+        s, _, r = self.req(True, 'POST', '/share', b'x', {'Content-Type': 'multipart/form-data; boundary=x'})
+        self.assertEqual(s, 303)
+        self.assertEqual(r.getheader('Location'), '/spaces?shared=0')
+        if not self.memory:
+            self.assertEqual(self.req(False, 'HEAD', '/spaces')[0], 200)
+
     def test_recado_multilinha(self):
         s, _, _ = self.req(False, 'POST', '/api/enviar', {'pane': 'w3:p1', 'texto': 'linha 1\nlinha 2\x1b[2J'}, self.K)
         self.assertEqual(s, 200)
@@ -231,6 +243,21 @@ class UnidadeTest(unittest.TestCase):
         d = self.p.dialogo(' Do you trust the files in this folder?\n\n /home/ana/projects/example\n\n ❯ 1. Yes, proceed\n   2. No, exit\n')
         self.assertEqual(len(d['opcoes']), 2)
         self.assertIn('trust', d['pergunta'])
+
+    def test_fila_e_pergunta_fora_do_blocked(self):
+        fila = 'trabalhando…\n❯ [Recado] olha isso\n  ctrl+enter to send now\n❯ Press up to edit queued messages\n'
+        with mock.patch.object(self.p, 'tela_recente', return_value=fila):
+            self.assertTrue(self.p.situacao(dict(pane='w1:p1', status='working'))['fila'])
+            self.assertFalse(self.p.situacao(dict(pane='w1:p1', status='idle'))['fila'])
+        pergunta = ' Qual formato?\n ❯ 1. PDF\n   2. Word\n\n Enter to select · ↑/↓ to navigate · Esc to cancel\n'
+        with mock.patch.object(self.p, 'tela_recente', return_value=pergunta):
+            d = self.p.situacao(dict(pane='w1:p1', status='idle'))['dialogo']
+            self.assertEqual([o['texto'] for o in d['opcoes']], ['PDF', 'Word'])
+        lista = 'Resposta final:\n 1. primeiro\n 2. segundo\n'   # numbered answer text is not a decision
+        with mock.patch.object(self.p, 'tela_recente', return_value=lista):
+            self.assertIsNone(self.p.situacao(dict(pane='w1:p1', status='idle'))['dialogo'])
+        with mock.patch.object(self.p, 'tela_recente', side_effect=subprocess.TimeoutExpired('herdr', 6)):
+            self.assertEqual(self.p.situacao(dict(pane='w1:p1', status='working')), {})
 
     def test_mascara_e_nome_seguro(self):
         self.assertEqual(self.p.mascarar('senha: hunter22222 token=abcdefghij'), 'senha: *** token=***')

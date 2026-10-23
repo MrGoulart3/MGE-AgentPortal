@@ -84,6 +84,24 @@ const T = {
     "exceeds": "{name} passa de {size} MB",
     "sendingFile": "enviando {name}…",
     "sending": "enviando…",
+    "threads": "📨 Recados",
+    "threadsTitle": "cada recado seu com a resposta final do agente",
+    "queued": "📨 Seu recado está na fila do agente: ele lê quando o comando atual terminar. Não precisa reenviar.",
+    "quick": "Rápido:",
+    "goAhead": "▶ pode seguir",
+    "goAheadText": "pode seguir",
+    "approve": "✔ pode publicar",
+    "approveText": "pode publicar",
+    "quickSent": "\"{text}\" enviado ✓",
+    "noReplyText": "sem resposta em texto",
+    "workingSteps": "⏳ trabalhando… ({n} ações)",
+    "steps": "{n} ações",
+    "noThreads": "(sem recados nesta sessão)",
+    "sharedConfirm": "Recebido pelo Compartilhar: {n} arquivo(s){txt}. Anexar à caixa de recado?",
+    "sharedText": " e um texto",
+    "sharedReady": "Compartilhado: escolha o space e toque em Enviar.",
+    "sharedLost": "Abra o portal uma vez pelo app e compartilhe de novo (os arquivos não chegaram).",
+    "moreSize": "⋯ Tamanho",
     "sent": "enviado ✓",
     "requests": "Pedidos de acesso",
     "origin": "origem ",
@@ -193,6 +211,24 @@ const T = {
     "exceeds": "{name} exceeds {size} MB",
     "sendingFile": "sending {name}…",
     "sending": "sending…",
+    "threads": "📨 Messages",
+    "threadsTitle": "each of your messages with the agent's final reply",
+    "queued": "📨 Your message is in the agent's queue: it is read when the current command finishes. No need to resend.",
+    "quick": "Quick:",
+    "goAhead": "▶ go ahead",
+    "goAheadText": "go ahead",
+    "approve": "✔ approved",
+    "approveText": "approved, go ahead",
+    "quickSent": "\"{text}\" sent ✓",
+    "noReplyText": "no text reply",
+    "workingSteps": "⏳ working… ({n} steps)",
+    "steps": "{n} steps",
+    "noThreads": "(no messages in this session)",
+    "sharedConfirm": "Received via Share: {n} file(s){txt}. Attach to the message box?",
+    "sharedText": " and a text",
+    "sharedReady": "Shared: choose a space and tap Send.",
+    "sharedLost": "Open the portal once as an app and share again (the files did not arrive).",
+    "moreSize": "⋯ Size",
     "sent": "sent ✓",
     "requests": "Access requests",
     "origin": "origin ",
@@ -261,7 +297,8 @@ $('idiomas').onclick = e => {
 let chave = lerS('portal_chave') || '';
 let aparelhoAntigo = lerS('portal_aparelho') || '';   // aparelhos aprovados antes do cookie HttpOnly
 let atual = lerS('portal_space') || '';
-let modo = lerS('portal_modo') || 'conversa';
+let modo = lerS('portal_modo') || 'recados';
+const ehConv = () => modo === 'conversa' || modo === 'recados';
 let tipo = lerS('portal_tipo') || 'claude';
 let ocultos = new Set((lerS('portal_cartoes_ocultos') || '').split(',').filter(Boolean));
 let ultSt = null, ultLim = null, ultEstado = '', ultHistorico = [];
@@ -377,7 +414,7 @@ function caber() {
 }
 addEventListener('resize', () => caber());
 function aplicarTela() {
-  const ehChat = modo === 'conversa', t = $('tela');
+  const ehChat = ehConv(), t = $('tela');
   t.hidden = ehChat; $('chat').hidden = !ehChat;
   ['ajustar', 'quebrar'].forEach(i => $(i).hidden = ehChat);
   t.classList.toggle('wrap', quebra); $('ajustar').classList.toggle('on', auto && !quebra); $('quebrar').classList.toggle('on', quebra);
@@ -406,10 +443,12 @@ function md(x) {
   let h = esc(x); const blocos = [];
   h = h.replace(/```[a-zA-Z0-9]*\n?([\s\S]*?)```/g, (m, c) => { blocos.push(c); return '\u0000' + (blocos.length - 1) + '\u0000' });
   h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/^#{1,4} (.*)$/gm, '<strong>$1</strong>');
+  h = h.replace(/(^|[\s(>])(https?:\/\/[^\s<)"']+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   return h.replace(/\u0000(\d+)\u0000/g, (m, i) => '<pre>' + (blocos[+i] ?? '') + '</pre>');
 }
 function desenharChat(estado) {
   ultEstado = estado;
+  if (modo === 'recados') return desenharFio(estado);
   const c = $('chat'); let html = '', tools = [];
   const flush = () => { if (tools.length) { html += '<div class="tl">🔧 ' + tools.map(esc).join('\n🔧 ') + '</div>'; tools = [] } };
   for (const e of conv) {
@@ -439,9 +478,9 @@ function desenharStatus(st, lim) {
   const card = (k, html) => ocultos.has(k) ? '' : '<div class="st" data-card="' + esc(k) + '"><button type="button" class="fechar" data-fechar="' + esc(k) + '" aria-label="' + esc(t('hideCard')) + '" title="' + esc(t('hideShort')) + '">✕</button>' + html + '</div>';
   const lc = (k, nome, pct, reset) => pct == null ? '' : card(k, '<small>' + esc(nome) + '</small><b>' + num(pct) + esc(t('used')) + '</b>' + esc(t('resets')) + esc(quando(reset)) + barra(pct));
   let h = '';
-  if (st && modo === 'conversa') h += card('modelo', '<small>' + esc(t('model')) + '</small><b>' + esc(nomeModelo(st.modelo)) + '</b>');
+  if (st && ehConv()) h += card('modelo', '<small>' + esc(t('model')) + '</small><b>' + esc(nomeModelo(st.modelo)) + '</b>');
   if (lim) h += lc('claude5h', t('claudeWindow'), lim.claude_5h, lim.claude_5h_reset) + lc('codex5h', t('codexWindow'), lim.codex_5h, lim.codex_5h_reset) + lc('codexsem', t('codexWeek'), lim.codex_sem, lim.codex_sem_reset);
-  if (st && modo === 'conversa') {
+  if (st && ehConv()) {
     h += card('contexto', '<small>' + esc(t('context')) + '</small><b>' + num(st.ctx_pct) + '%</b> · ' + esc(t('contextTokens', {used: num(st.ctx).toLocaleString(locale()), total: num(st.janela_contexto, 1000000).toLocaleString(locale())})) + barra(st.ctx_pct));
     if (st.ferramentas != null) h += card('sessao', '<small>' + esc(t('session')) + '</small><b>' + esc(dur(st.inicio)) + '</b> · ' + num(st.ferramentas) + esc(t('actions')));
     h += card('modo', '<small>' + esc(t('mode')) + '</small><b>' + esc(st.modo === 'auto' ? t('automatic') : st.modo || '?') + '</b>' + (st.branch ? ' · git ' + esc(st.branch) : ''));
@@ -450,13 +489,31 @@ function desenharStatus(st, lim) {
   if (o.dataset.h !== h) { o.innerHTML = h; o.dataset.h = h }
   o.hidden = !h;
 }
+// Messages mode: each user message with the FINAL reply of that turn (tool steps only counted)
+function desenharFio(estado) {
+  const c = $('chat'), pares = []; let par = null;
+  for (const e of conv) {
+    if (e.r === 'user') { par = {u: e, r: null, passos: 0}; pares.push(par); continue }
+    if (!par) continue;
+    if (e.r === 'tool') par.passos++; else par.r = e;
+  }
+  const hora = x => x ? new Date(x + 'Z').toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit'}) : '';
+  let html = pares.slice(-40).map((p, i, a) => {
+    const ult = i === a.length - 1, txt = p.u.x.replace(/^\[[^\]]*portal\]\s*/i, '');
+    return '<div class="par"><div class="m u">' + md(txt) + '<div class="hr">' + esc(hora(p.u.t)) + '</div></div>' +
+      (p.r ? '<div class="m c">' + md(p.r.x) + '<div class="hr">' + esc(hora(p.r.t)) + (p.passos ? ' · ' + esc(t('steps', {n: p.passos})) : '') + '</div></div>' :
+        '<div class="passos">' + esc(ult && estado === 'working' ? t('workingSteps', {n: p.passos}) : t('noReplyText')) + '</div>') + '</div>';
+  }).join('');
+  html = html || '<div class="work">' + esc(t('noThreads')) + '</div>';
+  if (c.dataset.h !== html) { c.innerHTML = html; c.dataset.h = html; if (grudado) c.scrollTop = c.scrollHeight }
+}
 async function carregarConversa(g) {
   if (convPane !== atual) { conv = []; convN = 0; convEpoca = ''; convPane = atual; grudado = true }
   const d = await api('/api/conversa?pane=' + encodeURIComponent(atual) + '&desde=' + convN + '&epoca=' + encodeURIComponent(convEpoca));
   if (g !== ger) return;
   if (d.epoca !== convEpoca || d.n < convN) { conv = d.itens; convEpoca = d.epoca }
   else conv = conv.concat(d.itens).slice(-400);
-  convN = d.n; desenharChat(d.estado); desenharStatus(d.status, d.limites); desenharDialogo(d.dialogo);
+  convN = d.n; desenharChat(d.estado); desenharStatus(d.status, d.limites); desenharDialogo(d.dialogo); $('fila').hidden = !d.fila;
 }
 
 // ---------- decisões (permissões, perguntas, confiar na pasta)
@@ -479,16 +536,16 @@ async function atualizar() {
     const s = lista.find(x => x.pane === atual);
     if (s) {
       delete $('nome').dataset.i18n; $('nome').textContent = s.workspace + (s.agent !== 'claude' ? ' (' + s.agent + ')' : ''); $('estado').textContent = ST[s.status] ? t(ST[s.status]) : s.status;
-      if (modo === 'conversa' && s.agent === 'claude') {
+      if (ehConv() && s.agent === 'claude') {
         try { await carregarConversa(g) } catch (err) { if (/indisponível/.test(err.message)) { modo = 'vivo'; aplicarTela() } else throw err }
         if (g !== ger) return;
         if (Date.now() - ultRecados > 6000) { const r = await api('/api/recados?pane=' + encodeURIComponent(atual)); if (g !== ger) return; desenharRecados(r.historico); ultRecados = Date.now() }
       } else {
-        if (modo === 'conversa') { modo = 'vivo'; aplicarTela() }
+        if (ehConv()) { modo = 'vivo'; aplicarTela() }
         const d = await api('/api/tela?pane=' + encodeURIComponent(atual) + '&modo=' + (modo === 'historico' ? 'historico' : 'vivo'));
         if (g !== ger) return;
         const t = $('tela'); delete t.dataset.i18n; if (d.tela) t.textContent = d.tela; else textoI18n('tela', 'emptyScreen'); caber(); if (grudado) t.scrollTop = t.scrollHeight;
-        desenharDialogo(d.dialogo); desenharRecados(d.historico); desenharStatus(null, d.limites);
+        desenharDialogo(d.dialogo); desenharRecados(d.historico); desenharStatus(null, d.limites); $('fila').hidden = !d.fila;
       }
     } else { textoI18n('nome', 'chooseSpace'); delete $('tela').dataset.i18n; $('tela').textContent = ''; $('chat').innerHTML = ''; $('hist').innerHTML = ''; ultHistorico = []; $('dlg').hidden = true }
     $('status').erroCliente = null; textoI18n('status', 'updatedStatus', {time: new Date().toLocaleTimeString(locale())}); $('status').className = 'muted';
@@ -508,6 +565,11 @@ async function tecla(k) {
   try { await api('/api/tecla', {pane: atual, tecla: k, dlg: dlgId}); msgI18n('keySent', true, {key: k}); dlgId = ''; $('dlg').hidden = true; setTimeout(atualizar, 700) }
   catch (err) { msgErro(err); setTimeout(atualizar, 300) }
 }
+$('acoes').onclick = async e => {   // quick replies go straight to the agent; the draft and attachments stay put
+  const b = e.target.closest('[data-rapido]'); if (!b || !atual) return;
+  const texto = t(b.dataset.rapido);
+  try { await api('/api/enviar', {pane: atual, texto}); msg(t('quickSent', {text: texto}), true); ultRecados = 0; setTimeout(atualizar, 1000) } catch (err) { msg(err.message, false) }
+};
 document.querySelector('.teclas').onclick = e => { const k = e.target.dataset.k; if (k) tecla(k) };
 function desenharAnexos() {
   $('anexos').innerHTML = anexos.map((f, i) => '<span class="anexo">📎 ' + esc(f.name) + ' <small>(' + Math.ceil(f.size / 1024) + ' KB)</small><button type="button" data-rm="' + i + '" aria-label="' + esc(t('remove')) + '">✕</button></span>').join('');
@@ -602,6 +664,26 @@ $('acessos').onclick = async e => {
 };
 
 aplicarIdioma();
+// Shared from the phone (sw.js): asks before attaching the files and text to the message box
+async function receberCompartilhado() {
+  const q = new URLSearchParams(location.search).get('shared'); if (q === null) return;
+  history.replaceState(null, '', '/spaces');
+  if (q === '0' || !('caches' in window)) { msg(t('sharedLost'), false); return }
+  const c = await caches.open('shared'), fs = []; let textoC = '';
+  for (const k of await c.keys()) {
+    const r = await c.match(k);
+    if (k.url.endsWith('/text')) textoC = (await r.text()).slice(0, 4000);
+    else fs.push(new File([await r.blob()], decodeURIComponent(r.headers.get('X-Name') || 'file'), {type: r.headers.get('Content-Type') || ''}));
+  }
+  await caches.delete('shared');
+  if (!fs.length && !textoC) return;
+  if (!confirm(t('sharedConfirm', {n: fs.length, txt: textoC ? t('sharedText') : ''}))) return;
+  if (textoC) $('texto').value = textoC;
+  if (fs.length) anexar(fs);
+  msg(t('sharedReady'), true);
+}
+receberCompartilhado().catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 $('lembrar').checked = lembrar;
 function iniciar() { $('login').hidden = true; $('app').hidden = false; aplicarTela(); atualizar() }
 if (chave) api('/api/spaces').then(iniciar).catch(e => { if (e.code === 'invalidKey') sair(true); else if (e.code !== 'unapproved') { $('login').hidden = false; mostrarErro('lerr', e) } });

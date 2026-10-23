@@ -15,6 +15,9 @@ A web portal for chatting from any browser with AI agents, such as Claude Code a
 - Claude/Codex/All filter, terminal history, font adjustments, and a mobile interface.
 - Bilingual interface (Portuguese/English): defaults to the browser language; the **PT | EN** selector in the header saves the preference in this browser.
 - Device approval and revocation, audit events, and key changes under **Access**.
+- **Messages** view (default): each of your messages paired with the agent's final reply, without the tool steps in between.
+- Clickable links in the chat; a notice when your message is waiting in the agent's queue (the agent is busy); multiple-choice questions (AskUserQuestion) shown as buttons even when the agent is not marked as blocked; quick replies ("go ahead", "approved").
+- Installable on the phone (PWA): add it to the home screen and use **Share → Agent Portal** from the gallery, Drive or chat apps; the portal asks before attaching what was shared.
 
 ## Images
 

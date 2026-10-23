@@ -15,6 +15,9 @@ Portal web para conversar de qualquer navegador com agentes de IA, como Claude C
 - Filtro Claude/Codex/Todos, histórico do terminal, ajustes de fonte e interface para celular.
 - Interface bilíngue (português/inglês): usa o idioma do navegador por padrão; o seletor **PT | EN** no cabeçalho salva a preferência neste navegador.
 - Aprovação e revogação de aparelhos, auditoria e troca de chave em **Acessos**.
+- Modo **Recados** (padrão): cada recado seu com a resposta final do agente, sem os passos de ferramenta no meio.
+- Links clicáveis na conversa; aviso quando o recado está na fila do agente (ocupado); perguntas de múltipla escolha (AskUserQuestion) em botões mesmo quando o agente não está marcado como bloqueado; respostas rápidas ("pode seguir", "pode publicar").
+- Instalável no celular (PWA): adicione à tela inicial e use **Compartilhar → Agent Portal** a partir da galeria, do Drive ou de apps de conversa; o portal pergunta antes de anexar o que foi compartilhado.
 
 ## Imagens
 
