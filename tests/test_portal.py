@@ -192,6 +192,18 @@ class PortalTest(unittest.TestCase):
         if not self.memory:
             self.assertEqual(self.req(False, 'HEAD', '/spaces')[0], 200)
 
+    def test_recado_em_espera_enquanto_trabalha(self):
+        # agent working → held 2 min, listed, can be sent now or cancelled / agente trabalhando → recado em espera
+        s, d, _ = self.req(False, 'POST', '/api/enviar', {'pane': 'w1:p1', 'texto': 'segura'}, self.K)
+        self.assertEqual((s, d.get('guardado'), d.get('tipo')), (200, True, 'espera'), d)
+        s, d, _ = self.req(False, 'POST', '/api/enviar', {'pane': 'w1:p1', 'texto': 'quando terminar', 'depois': True}, self.K)
+        self.assertEqual(d.get('tipo'), 'depois')
+        s, lst, _ = self.req(False, 'GET', '/api/depois?pane=w1:p1', h=self.K)
+        self.assertEqual([i['texto'] for i in lst['itens']], ['segura', 'quando terminar'])
+        for i in lst['itens']:
+            self.assertEqual(self.req(False, 'POST', '/api/depois/cancelar', {'id': i['id']}, self.K)[1]['removido'], 1)
+        self.assertEqual(self.req(False, 'GET', '/api/depois?pane=w1:p1', h=self.K)[1]['itens'], [])
+
     def test_recado_multilinha(self):
         s, _, _ = self.req(False, 'POST', '/api/enviar', {'pane': 'w3:p1', 'texto': 'linha 1\nlinha 2\x1b[2J'}, self.K)
         self.assertEqual(s, 200)

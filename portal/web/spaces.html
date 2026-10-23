@@ -37,6 +37,12 @@ button.b{cursor:pointer}button.main{background:var(--accent);border-color:var(--
 #entrada.arrastando textarea{outline:3px dashed var(--accent)}
 .hist{font-size:13px;max-height:160px;overflow:auto;margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .hist div{padding:3px 0}.ac{padding:8px 0;border-bottom:1px solid var(--line)}.ac .row{margin-top:6px}.ac input{width:9em}
+#chat .tbl{overflow-x:auto;max-width:100%;margin:6px 0;white-space:normal}#chat .tbl table{border-collapse:collapse;font-size:13px;min-width:100%}
+#chat .tbl th,#chat .tbl td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top;white-space:nowrap}#chat .tbl th{background:color-mix(in srgb,var(--muted) 14%,transparent)}
+#chat .dlgchat{align-self:stretch;border:2px solid var(--warn);background:var(--warnbg);border-radius:12px;padding:10px 12px;white-space:normal}
+#chat .dlgchat pre{white-space:pre-wrap;background:none;color:inherit;padding:0;margin:4px 0 8px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace}
+#chat .dlgchat .ops{display:flex;flex-direction:column;gap:6px}#chat .dlgchat .ops button{text-align:left}
+.guardados{margin-top:8px;font-size:13px;border:1px dashed var(--line);border-radius:10px;padding:6px 10px}.guardados div{padding:3px 0}.guardados button{border:0;background:none;color:var(--bad);cursor:pointer}
 details.mais{display:inline-block}details.mais summary{list-style:none;cursor:pointer;display:inline-block}details.mais summary::-webkit-details-marker{display:none}
 .fila{margin-top:10px;border:1px solid var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--card));border-radius:10px;padding:9px 12px;font-size:14px}
 #chat a{color:inherit;text-decoration:underline;overflow-wrap:anywhere}#chat .c a{color:var(--accent)}
@@ -83,7 +89,8 @@ details.mais{display:inline-block}details.mais summary{list-style:none;cursor:po
 <div class="row acoes" id="acoes"><small class="muted" data-i18n="quick">Rápido:</small><button class="b" type="button" data-rapido="goAheadText" data-i18n="goAhead">▶ pode seguir</button><button class="b" type="button" data-rapido="approveText" data-i18n="approve">✔ pode publicar</button></div>
 <form id="ef"><div id="entrada"><textarea id="texto" data-i18n-ph="messagePlaceholder" placeholder="Recado para este space… (Enter envia · Shift+Enter pula linha · arraste ou cole arquivos)" style="margin-top:10px"></textarea></div>
 <div class="anexos" id="anexos"></div>
-<div class="row"><button class="b main" id="enviar" data-i18n="send">Enviar</button><button class="b" type="button" id="clip" data-i18n="attach">📎 Anexar</button><input type="file" id="arq" multiple hidden><small id="msg"></small></div></form>
+<div class="row"><button class="b main" id="enviar" data-i18n="send">Enviar</button><button class="b" type="button" id="depois" data-i18n="holdDone" data-i18n-title="holdDoneTitle">⏳ Quando terminar</button><button class="b perigo" type="button" id="urgente" data-i18n="interruptSend" data-i18n-title="interruptSendTitle">⛔ Interromper e enviar</button><button class="b" type="button" id="clip" data-i18n="attach">📎 Anexar</button><input type="file" id="arq" multiple hidden><small id="msg"></small></div></form>
+<div class="guardados" id="guardados" hidden></div>
 <div class="hist" id="hist"></div>
 </section>
 </div>

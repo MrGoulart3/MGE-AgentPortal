@@ -84,6 +84,19 @@ const T = {
     "exceeds": "{name} passa de {size} MB",
     "sendingFile": "enviando {name}…",
     "sending": "enviando…",
+    "holdDone": "⏳ Quando terminar",
+    "holdDoneTitle": "guarda o recado e entrega quando o agente terminar a tarefa atual",
+    "interruptSend": "⛔ Interromper e enviar",
+    "interruptSendTitle": "interrompe o que o agente está fazendo (Esc) e envia o recado",
+    "confirmInterrupt": "Interromper o que o agente está fazendo agora (Esc) e enviar o recado?",
+    "interrupted": "interrompido ✓",
+    "heldTitle": "Recados em espera (só chegam ao agente no momento indicado):",
+    "heldIn": "⏱ entra em {s} s (ou quando o agente parar)",
+    "heldAfter": "⏳ quando o agente terminar",
+    "sendNow": "➤ enviar já",
+    "cancelHeld": "✕ cancelar",
+    "heldWait": "em espera por 2 min (o agente está trabalhando): dá para cancelar ou enviar já ✓",
+    "heldAfterOk": "guardado: chega quando o agente terminar ✓",
     "threads": "📨 Recados",
     "threadsTitle": "cada recado seu com a resposta final do agente",
     "queued": "📨 Seu recado está na fila do agente: ele lê quando o comando atual terminar. Não precisa reenviar.",
@@ -211,6 +224,19 @@ const T = {
     "exceeds": "{name} exceeds {size} MB",
     "sendingFile": "sending {name}…",
     "sending": "sending…",
+    "holdDone": "⏳ When done",
+    "holdDoneTitle": "keeps the message and delivers it when the agent finishes the current task",
+    "interruptSend": "⛔ Interrupt and send",
+    "interruptSendTitle": "interrupts what the agent is doing (Esc) and sends the message",
+    "confirmInterrupt": "Interrupt what the agent is doing now (Esc) and send the message?",
+    "interrupted": "interrupted ✓",
+    "heldTitle": "Held messages (reach the agent only at the time shown):",
+    "heldIn": "⏱ goes in {s} s (or when the agent stops)",
+    "heldAfter": "⏳ when the agent finishes",
+    "sendNow": "➤ send now",
+    "cancelHeld": "✕ cancel",
+    "heldWait": "held for 2 min (the agent is working): you can cancel or send now ✓",
+    "heldAfterOk": "saved: delivered when the agent finishes ✓",
     "threads": "📨 Messages",
     "threadsTitle": "each of your messages with the agent's final reply",
     "queued": "📨 Your message is in the agent's queue: it is read when the current command finishes. No need to resend.",
@@ -397,7 +423,7 @@ $('tipos').onclick = e => { const t = e.target.dataset.tipo; if (!t) return; tip
 $('spaces').onclick = e => { const b = e.target.closest('[data-p]'); if (b) escolher(b.dataset.p) };
 $('sel').onchange = () => $('sel').value && escolher($('sel').value);
 function escolher(p) {
-  atual = p; gravarS('portal_space', p); ger++; grudado = true; ultRecados = 0;
+  atual = p; gravarS('portal_space', p); ger++; grudado = true; ultRecados = 0; $('guardados').hidden = true; $('guardados').innerHTML = '';
   document.querySelectorAll('.space').forEach(b => b.classList.toggle('sel', b.dataset.p === p)); $('sel').value = p;
   textoI18n('tela', 'loading'); $('chat').innerHTML = ''; $('chat').dataset.h = ''; $('dlg').hidden = true;
   atualizar();
@@ -439,9 +465,22 @@ $('tela').onscroll = () => { const t = $('tela'); grudado = t.scrollHeight - t.s
 $('chat').onscroll = () => { const t = $('chat'); grudado = t.scrollHeight - t.scrollTop - t.clientHeight < 60 };
 
 // ---------- conversa (chat)
+function tabelas(h) {   // markdown tables (| a | b |) become <table> with horizontal scroll / tabelas markdown viram <table>
+  const L = h.split('\n'), out = [];
+  const cel = l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+  for (let i = 0; i < L.length; i++) {
+    if (/^\s*\|.*\|\s*$/.test(L[i]) && i + 1 < L.length && /^\s*\|?\s*:?-{2,}/.test(L[i + 1])) {
+      let t = '<div class="tbl"><table><tr>' + cel(L[i]).map(c => '<th>' + c + '</th>').join('') + '</tr>'; i += 2;
+      while (i < L.length && /^\s*\|.*\|\s*$/.test(L[i])) { t += '<tr>' + cel(L[i]).map(c => '<td>' + c + '</td>').join('') + '</tr>'; i++ }
+      out.push(t + '</table></div>'); i--;
+    } else out.push(L[i]);
+  }
+  return out.join('\n');
+}
 function md(x) {
   let h = esc(x); const blocos = [];
   h = h.replace(/```[a-zA-Z0-9]*\n?([\s\S]*?)```/g, (m, c) => { blocos.push(c); return '\u0000' + (blocos.length - 1) + '\u0000' });
+  h = tabelas(h);
   h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/^#{1,4} (.*)$/gm, '<strong>$1</strong>');
   h = h.replace(/(^|[\s(>])(https?:\/\/[^\s<)"']+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   return h.replace(/\u0000(\d+)\u0000/g, (m, i) => '<pre>' + (blocos[+i] ?? '') + '</pre>');
@@ -459,6 +498,7 @@ function desenharChat(estado) {
   }
   flush();
   if (estado === 'working') html += '<div class="work">' + esc(t('chatWorking')) + '</div>';
+  html += dlgHtml();
   html = html || '<div class="work">' + esc(t('noMessages')) + '</div>';
   if (c.dataset.h !== html) { c.innerHTML = html; c.dataset.h = html; if (grudado) c.scrollTop = c.scrollHeight }
 }
@@ -504,7 +544,7 @@ function desenharFio(estado) {
       (p.r ? '<div class="m c">' + md(p.r.x) + '<div class="hr">' + esc(hora(p.r.t)) + (p.passos ? ' · ' + esc(t('steps', {n: p.passos})) : '') + '</div></div>' :
         '<div class="passos">' + esc(ult && estado === 'working' ? t('workingSteps', {n: p.passos}) : t('noReplyText')) + '</div>') + '</div>';
   }).join('');
-  html = html || '<div class="work">' + esc(t('noThreads')) + '</div>';
+  html = (html || '<div class="work">' + esc(t('noThreads')) + '</div>') + dlgHtml();
   if (c.dataset.h !== html) { c.innerHTML = html; c.dataset.h = html; if (grudado) c.scrollTop = c.scrollHeight }
 }
 async function carregarConversa(g) {
@@ -517,13 +557,24 @@ async function carregarConversa(g) {
 }
 
 // ---------- decisões (permissões, perguntas, confiar na pasta)
+let dlgAtual = null;
+function dlgHtml() {   // the decision also appears INSIDE the chat, at the end / a decisão aparece também dentro da conversa
+  const dg = dlgAtual; if (!dg) return '';
+  return '<div class="dlgchat"><strong>' + esc(t('decision')) + '</strong><pre>' + esc(dg.pergunta || '') + '</pre><div class="ops">' +
+    dg.opcoes.map(o => '<button class="b' + (o.marcada ? ' on' : '') + '" type="button" data-op="' + esc(o.n) + '">' + esc(o.n) + '. ' + esc(o.texto) + '</button>').join('') +
+    '<button class="b" type="button" data-op="esc">' + esc(t('cancel')) + '</button></div><small class="muted">' + esc(t('freeText')) + '</small></div>';
+}
 function desenharDialogo(dg) {
   dlgId = dg && dg.id ? dg.id : '';
+  const antes = dlgAtual?.id; dlgAtual = dg && dg.opcoes?.length ? dg : null;
+  if (ehConv() && dlgAtual?.id !== antes) { $('chat').dataset.h = ''; grudado = true; desenharChat(ultEstado) }
   if (!dg || !dg.opcoes || !dg.opcoes.length) { $('dlg').hidden = true; return }
+  if (ehConv()) { $('dlg').hidden = true; return }
   $('dlgq').textContent = dg.pergunta || '';
   $('dlgops').innerHTML = dg.opcoes.map(o => '<button class="b' + (o.marcada ? ' on' : '') + '" type="button" data-op="' + esc(o.n) + '">' + esc(o.n) + '. ' + esc(o.texto) + '</button>').join('');
   $('dlg').hidden = false;
 }
+$('chat').addEventListener('click', e => { const n = e.target.closest('.dlgchat [data-op]')?.dataset.op; if (n) tecla(n) });
 $('dlgops').onclick = e => { const n = e.target.closest('[data-op]')?.dataset.op; if (n) tecla(n) };
 $('dlgesc').onclick = () => tecla('esc');
 
@@ -539,7 +590,7 @@ async function atualizar() {
       if (ehConv() && s.agent === 'claude') {
         try { await carregarConversa(g) } catch (err) { if (/indisponível/.test(err.message)) { modo = 'vivo'; aplicarTela() } else throw err }
         if (g !== ger) return;
-        if (Date.now() - ultRecados > 6000) { const r = await api('/api/recados?pane=' + encodeURIComponent(atual)); if (g !== ger) return; desenharRecados(r.historico); ultRecados = Date.now() }
+        if (Date.now() - ultRecados > 6000) { const r = await api('/api/recados?pane=' + encodeURIComponent(atual)); if (g !== ger) return; desenharRecados(r.historico); ultRecados = Date.now(); carregarGuardados() }
       } else {
         if (ehConv()) { modo = 'vivo'; aplicarTela() }
         const d = await api('/api/tela?pane=' + encodeURIComponent(atual) + '&modo=' + (modo === 'historico' ? 'historico' : 'vivo'));
@@ -568,7 +619,7 @@ async function tecla(k) {
 $('acoes').onclick = async e => {   // quick replies go straight to the agent; the draft and attachments stay put
   const b = e.target.closest('[data-rapido]'); if (!b || !atual) return;
   const texto = t(b.dataset.rapido);
-  try { await api('/api/enviar', {pane: atual, texto}); msg(t('quickSent', {text: texto}), true); ultRecados = 0; setTimeout(atualizar, 1000) } catch (err) { msg(err.message, false) }
+  try { await api('/api/enviar', {pane: atual, texto, agora: true}); msg(t('quickSent', {text: texto}), true); ultRecados = 0; setTimeout(atualizar, 1000) } catch (err) { msg(err.message, false) }
 };
 document.querySelector('.teclas').onclick = e => { const k = e.target.dataset.k; if (k) tecla(k) };
 function desenharAnexos() {
@@ -594,24 +645,51 @@ $('texto').addEventListener('paste', e => { const fs = [...(e.clipboardData?.fil
 ['dragleave', 'drop'].forEach(t => $('entrada').addEventListener(t, e => { e.preventDefault(); $('entrada').classList.remove('arrastando') }));
 $('entrada').addEventListener('drop', e => anexar(e.dataTransfer?.files || []));
 let enviando = false, enviados = [];   // caminhos já salvos sobrevivem a uma falha no meio
+let modoEnvio = '', urgenteEnvio = false, destinoEnvio = '';   // '' normal · 'depois' until done · urgente = after Esc
 $('ef').onsubmit = async e => {
   e.preventDefault(); if (enviando || !atual) return;
+  const modoAgora = modoEnvio, urgenteAgora = urgenteEnvio, destino = destinoEnvio || atual; modoEnvio = ''; urgenteEnvio = false; destinoEnvio = '';
   let texto = $('texto').value.trim(); if (!texto && !anexos.length) return;
   enviando = true; $('enviar').disabled = true;
   try {
     while (anexos.length) {
       const f = anexos[0];
       msgI18n('sendingFile', undefined, {name: f.name});
-      const d = await api('/api/arquivo?pane=' + encodeURIComponent(atual) + '&nome=' + encodeURIComponent(f.name), f, {timeout: 900000});
+      const d = await api('/api/arquivo?pane=' + encodeURIComponent(destino) + '&nome=' + encodeURIComponent(f.name), f, {timeout: 900000});
       enviados.push(d.caminho); anexos.shift(); desenharAnexos();
     }
     const caminhos = enviados;
     if (caminhos.length) texto = (texto ? texto + '\n\n' : t('fileIntro') + '\n\n') + t('filePaths') + '\n' + caminhos.map(c => '- ' + c).join('\n');
     msgI18n('sending');
-    await api('/api/enviar', {pane: atual, texto});
+    const r = await api('/api/enviar', {pane: destino, texto, depois: modoAgora === 'depois', agora: urgenteAgora});
+    if (r.guardado) { $('texto').value = ''; anexos = []; enviados = []; desenharAnexos(); carregarGuardados(); msg(t(r.tipo === 'espera' ? 'heldWait' : 'heldAfterOk'), true); return }
     $('texto').value = ''; anexos = []; enviados = []; desenharAnexos(); msgI18n('sent', true); grudado = true; ultRecados = 0; setTimeout(atualizar, 1000);
   } catch (err) { msgErro(err) }
   finally { enviando = false; $('enviar').disabled = false }
+};
+$('depois').onclick = () => { if (enviando) return; modoEnvio = 'depois'; $('ef').requestSubmit() };
+$('urgente').onclick = async () => {
+  if (!atual || enviando) return; const alvo = atual;   // interrupts and sends to the SAME agent
+  if (!confirm(t('confirmInterrupt'))) return;
+  try { await api('/api/tecla', {pane: alvo, tecla: 'esc', dlg: dlgId}) } catch (err) { msgErro(err); return }
+  await new Promise(r => setTimeout(r, 1500));
+  if ($('texto').value.trim() || anexos.length) { urgenteEnvio = true; destinoEnvio = alvo; $('ef').requestSubmit() } else { msg(t('interrupted'), true); setTimeout(atualizar, 700) }
+};
+async function carregarGuardados() {
+  if (!atual) return; const pane = atual;
+  try {
+    const d = await api('/api/depois?pane=' + encodeURIComponent(pane)), g = $('guardados');
+    if (pane !== atual) return;   // switched agent meanwhile: never show (or cancel) the previous queue
+    const quando = i => i.tipo === 'espera' ? t('heldIn', {s: Math.max(0, Math.round(i.ate - Date.now() / 1000))}) : t('heldAfter');
+    g.hidden = !d.itens.length;
+    g.innerHTML = '<small class="muted">' + esc(t('heldTitle')) + '</small>' + d.itens.map(i => '<div><small class="muted">' + esc(quando(i)) + '</small><br>' + esc(i.texto.slice(0, 300)) +
+      ' <button type="button" data-agora="' + esc(i.id) + '" style="color:var(--accent)">' + esc(t('sendNow')) + '</button> <button type="button" data-cancelar="' + esc(i.id) + '">' + esc(t('cancelHeld')) + '</button></div>').join('');
+    clearTimeout(carregarGuardados.t); if (d.itens.length) carregarGuardados.t = setTimeout(carregarGuardados, 5000);
+  } catch (e) {}
+}
+$('guardados').onclick = async e => {
+  const {cancelar, agora} = e.target.dataset; if (!cancelar && !agora) return;
+  await api(cancelar ? '/api/depois/cancelar' : '/api/depois/agora', {id: cancelar || agora}).catch(() => {}); carregarGuardados();
 };
 $('texto').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('ef').requestSubmit() } };
 

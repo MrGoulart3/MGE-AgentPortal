@@ -328,6 +328,84 @@ def historico(pane: str, n: int = 30) -> list:
     return rows[-n:]
 
 
+# ---------------------------------------------------------------- held messages / recados guardados
+# "after": delivered when the agent stops working · "espera": held 2 min while the agent works (consecutive ones go together).
+# "depois": entregue quando o agente parar · "espera": 2 min enquanto trabalha (seguidos vão juntos).
+DEPOIS = DIR / 'depois.json'
+_DEPOIS_LOCK = threading.Lock()
+_DEPOIS_VIGIA: list = []
+
+
+def depois_ler() -> list:
+    try:
+        return json.loads(DEPOIS.read_text())
+    except (OSError, ValueError):
+        return []
+
+
+def depois_gravar(itens: list) -> None:
+    tmp = DEPOIS.with_suffix('.tmp')
+    tmp.write_text(json.dumps(itens, ensure_ascii=False))
+    os.chmod(tmp, 0o600)
+    tmp.replace(DEPOIS)
+
+
+def _depois_tirar(ids: set) -> None:
+    """Grava logo após cada entrega confirmada (uma falha depois não repete o que já chegou)."""
+    with _DEPOIS_LOCK:
+        depois_gravar([i for i in depois_ler() if i['id'] not in ids])
+
+
+def _depois_prompt(pane: str, texto: str) -> bool | None:
+    """True entregue · False recusado (tenta de novo) · None incerto (timeout: não repete, para não duplicar)."""
+    try:
+        return herdr('agent', 'prompt', pane, texto, timeout=10).returncode == 0
+    except subprocess.TimeoutExpired:
+        print(f'portal: depois: envio incerto para {pane} (timeout); não repito', flush=True)
+        return None
+
+
+def depois_entregar() -> None:
+    """A cada 10 s: entrega os recados guardados aos spaces que pararam (e os 'espera' vencidos)."""
+    while True:
+        time.sleep(10)
+        try:
+            with _DEPOIS_LOCK:
+                itens = depois_ler()
+            if not itens:
+                continue
+            status = {r['pane']: r['status'] for r in spaces_list()}
+            agora, vencidos = time.time(), {}
+            for it in itens:   # 'espera': sai no prazo ou quando o space para; vários do mesmo pane vão juntos
+                if it.get('tipo') == 'espera' and (agora >= it.get('ate', 0) or status.get(it['pane']) in ('idle', 'done')):
+                    vencidos.setdefault(it['pane'], []).append(it)
+            for pane, grupo in vencidos.items():
+                if status.get(pane) == 'blocked':
+                    continue   # esperando decisão: o prompt seria recusado; tenta no próximo ciclo
+                ok = _depois_prompt(pane, f"[Recado do {CFG['dono']} pelo portal] " + '\n\n'.join(i['texto'] for i in grupo))
+                if ok is not False:
+                    _depois_tirar({i['id'] for i in grupo})
+                    for i in grupo:
+                        registrar(pane, 'recado', i['texto'] + ('' if ok else ' (envio incerto)'), i.get('aparelho', ''))
+            for it in itens:   # 'depois': só quando o space parar
+                if it.get('tipo') == 'espera' or status.get(it['pane']) not in ('idle', 'done'):
+                    continue
+                ok = _depois_prompt(it['pane'], f"[Recado do {CFG['dono']} pelo portal, guardado para quando você terminasse a tarefa] {it['texto']}")
+                if ok is not False:
+                    _depois_tirar({it['id']})
+                    registrar(it['pane'], 'recado', '(depois) ' + it['texto'], it.get('aparelho', ''))
+        except Exception as erro:   # o vigia nunca pode morrer
+            print(f'portal: depois: {erro!r}', flush=True)
+
+
+def depois_iniciar() -> None:
+    with _DEPOIS_LOCK:
+        if not _DEPOIS_VIGIA:
+            t = threading.Thread(target=depois_entregar, daemon=True, name='depois')
+            t.start()
+            _DEPOIS_VIGIA.append(t)
+
+
 # ---------------------------------------------------------------- tela e diálogos (aprovações/perguntas)
 OPCAO_RE = re.compile(r'^\s*(?:[│┃|]\s*)?(❯|>)?\s*(\d)\.\s+(.+?)\s*(?:[│┃|]\s*)?$')
 
@@ -699,6 +777,8 @@ class PortalMixin:
         rotas = {
             ('GET', '/api/spaces'): self.r_spaces, ('GET', '/api/tela'): self.r_tela,
             ('GET', '/api/conversa'): self.r_conversa, ('GET', '/api/recados'): self.r_recados,
+            ('GET', '/api/depois'): self.r_depois, ('POST', '/api/depois/cancelar'): self.r_depois_cancelar,
+            ('POST', '/api/depois/agora'): self.r_depois_agora,
             ('POST', '/api/enviar'): self.r_enviar, ('POST', '/api/tecla'): self.r_tecla,
             ('POST', '/api/arquivo'): self.r_arquivo,
             ('POST', '/api/acesso/pedir'): self.r_pedir, ('GET', '/api/acesso/estado'): self.r_estado,
@@ -777,6 +857,22 @@ class PortalMixin:
             return self.json_reply(400, dict(erro='recado vazio'))
         if len(texto) > 8000:
             return self.json_reply(413, dict(erro='recado grande demais (máx. 8000 caracteres)'))
+        espera = not data.get('agora') and sp['status'] == 'working'
+        if data.get('depois') or espera:
+            # depois: entrega quando o space parar · espera: 2 min visível/cancelável no portal (recados seguidos vão juntos)
+            depois_iniciar()
+            with _DEPOIS_LOCK:
+                itens = depois_ler()
+                item = dict(id=secrets.token_hex(4), pane=sp['pane'], texto=texto, t=time.strftime('%Y-%m-%d %H:%M:%S'),
+                            aparelho=self.nome_aparelho())
+                if not data.get('depois'):
+                    item.update(tipo='espera', ate=time.time() + 120)
+                itens.append(item)
+                depois_gravar(itens)
+            if data.get('depois'):
+                registrar(sp['pane'], 'depois', texto, self.nome_aparelho())
+            return self.json_reply(200, dict(ok=True, guardado=True, tipo=item.get('tipo', 'depois')))
+
         try:
             r = herdr('agent', 'prompt', sp['pane'], f"[Recado do {CFG['dono']} pelo portal] {texto}", timeout=10)
         except subprocess.TimeoutExpired:
@@ -788,6 +884,38 @@ class PortalMixin:
             return self.json_reply(502, dict(erro='o space não aceitou o recado agora'))
         registrar(sp['pane'], 'recado', texto, self.nome_aparelho())
         self.json_reply(200, dict(ok=True))
+
+    def r_depois(self, q):
+        if self.authorized() and (sp := self.pane_q(q)):
+            depois_iniciar()
+            self.json_reply(200, dict(itens=[i for i in depois_ler() if i['pane'] == sp['pane']]))
+
+    def r_depois_agora(self, q):
+        """➤ enviar já: o guardado vira 'espera' vencida (o vigia entrega em até 10 s, junto com os outros em espera)."""
+        if not self.authorized():
+            return
+        data = self.corpo_json()
+        if data is None:
+            return
+        with _DEPOIS_LOCK:
+            itens = depois_ler()
+            for i in itens:
+                if i['id'] == str(data.get('id', '')) and space(i['pane'], self.public):
+                    i.update(tipo='espera', ate=0)
+            depois_gravar(itens)
+        self.json_reply(200, dict(ok=True))
+
+    def r_depois_cancelar(self, q):
+        if not self.authorized():
+            return
+        data = self.corpo_json()
+        if data is None:
+            return
+        with _DEPOIS_LOCK:
+            itens = depois_ler()
+            fica = [i for i in itens if i['id'] != str(data.get('id', '')) or not space(i['pane'], self.public)]
+            depois_gravar(fica)
+        self.json_reply(200, dict(ok=True, removido=len(itens) - len(fica)))
 
     def r_tecla(self, q):
         if not self.authorized():
@@ -976,3 +1104,8 @@ class PortalMixin:
         auditar('chave trocada', self.cliente(), self.nome_aparelho(), 'aparelhos revogados' if data.get('revogar_todos') else '')
         avisar('Portal: chave trocada', f"A chave do portal foi trocada as {time.strftime('%H:%M')} pelo aparelho '{self.nome_aparelho()}'. Se nao foi voce, verifique o PC.", 'alta')
         self.json_reply(200, dict(ok=True, chave=novo))
+
+
+# held messages keep being delivered after a restart / recados guardados continuam sendo entregues
+if os.environ.get("PORTAL_SEM_VIGIA") != "1":
+    depois_iniciar()
