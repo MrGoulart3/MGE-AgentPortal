@@ -40,3 +40,32 @@ def open_download(root: Path, name: str):
         stream.close()
         raise ValueError('Not a regular file')
     return stream
+
+
+def mark_key(path: Path) -> str:
+    """Identifies a version without exposing its path in the event index."""
+    import hashlib
+    info = path.stat()
+    return hashlib.sha256(f'{path}:{info.st_mtime_ns}:{info.st_size}'.encode()).hexdigest()
+
+
+def marked(directory: Path, path: Path) -> bool:
+    """Replays the mark events for this file version."""
+    import json
+    key = mark_key(path)
+    value = False
+    index = directory / 'file-marks.jsonl'
+    if index.exists():
+        for line in index.read_text().splitlines():
+            row = json.loads(line)
+            if row['id'] == key:
+                value = row['tipo'] == 'baixado'
+    return value
+
+
+def mark(directory: Path, path: Path, kind: str) -> None:
+    """Appends a private event while the caller holds the portal lock."""
+    import json
+    with (directory / 'file-marks.jsonl').open('a') as stream:
+        os.chmod(stream.name, 0o600)
+        stream.write(json.dumps({'id': mark_key(path), 'tipo': kind}) + '\n')

@@ -143,9 +143,9 @@ Execute na raiz deste repositório:
    cp config.example.json ~/.config/mge-agentportal/config.json
    ```
 
-   O exemplo inicia em loopback, encontra `herdr` no `PATH` e deixa notificações e ocultação de workspaces sem configuração. Defina seu nome em `dono` (`"Ana"` é fictício); se necessário, informe o caminho absoluto do executável em `herdr` e seu comando de notificações em `aviso_cmd`. Adicione IDs, rótulos ou prefixos absolutos de pastas sensíveis (exemplo fictício: `/home/ana/projects/private`) em `ocultos_na_internet`. Se precisar da entrada privada pela rede Tailscale, adicione o endereço dessa máquina, sem abrir a porta privada na internet.
+   O exemplo inicia em loopback, encontra `herdr` no `PATH` e deixa notificações e ocultação de workspaces sem configuração. Defina seu nome em `dono` (`"Member A"` é fictício); se necessário, informe o caminho absoluto do executável em `herdr` e seu comando de notificações em `aviso_cmd`. Adicione IDs, rótulos ou prefixos absolutos de pastas sensíveis (exemplo fictício: `/home/user/projects/private`) em `ocultos_na_internet`. Se precisar da entrada privada pela rede Tailscale, adicione o endereço dessa máquina, sem abrir a porta privada na internet.
 
-   Preencha `hosts_permitidos` com os Hosts efetivamente usados: `127.0.0.1:8787`, `localhost:8787`, `127.0.0.1:8788`, o Host privado se houver e `minha-maquina.tailnet-exemplo.ts.net` substituído pelo nome da sua máquina. A lista vazia desativa a conferência de Host.
+   Preencha `hosts_permitidos` com os Hosts efetivamente usados: `127.0.0.1:8787`, `localhost:8787`, `127.0.0.1:8788`, o Host privado se houver e `portal.example.org` substituído pelo nome da sua máquina. A lista vazia desativa a conferência de Host.
 
 3. Inicie e confira o serviço:
 
@@ -162,7 +162,7 @@ Execute na raiz deste repositório:
    sudo tailscale funnel --bg 8788
    ```
 
-   Use a URL HTTPS informada pelo comando; neste documento, o exemplo é `https://minha-maquina.tailnet-exemplo.ts.net/spaces`.
+   Use a URL HTTPS informada pelo comando; neste documento, o exemplo é `https://portal.example.org/spaces`.
 
 5. Aprove o primeiro aparelho. Nele, abra a URL pública, entre com a chave, informe um nome e peça acesso. Na sessão privada aberta na máquina, vá a **Acessos**, encontre o pedido e digite o código mostrado pelo aparelho novo. Após a aprovação, ele entra automaticamente. Os próximos aparelhos podem ser aprovados pela sessão privada ou por um aparelho já aprovado.
 
@@ -198,7 +198,7 @@ Os nomes existentes em português continuam na interface pública: `portal-ctl c
 
 | Chave | Padrão | Função |
 | --- | --- | --- |
-| `dono` | `"dono"` | Nome no prefixo dos recados; o exemplo usa `"Ana"`. |
+| `dono` | `"dono"` | Nome no prefixo dos recados; o exemplo usa `"Member A"`. |
 | `herdr` | Executável no `PATH` ou `~/.local/bin/herdr` | Caminho ou nome do executável no `PATH`. |
 | `enderecos_privados` | `[["127.0.0.1", 8787]]` | Pares de endereço e porta que exigem só chave. Use portas diferentes de `porta_publica`. |
 | `porta_publica` | `8788` | Porta local publicada pelo Funnel; sempre em `127.0.0.1`. |
@@ -275,6 +275,15 @@ Se o ambiente bloquear sockets TCP locais, a suíte usa automaticamente o handle
 
 Clique em um anel ou cartão de servidor (também com Enter/Espaço) para ver **quem está rodando**: núcleos por pessoa, responsável, programa e quantidade de processos, memória e tempo de execução. Jobs do escalonador são agrupados por pessoa e estado, com quantidade, núcleos alocados e maior tempo de execução. `servers.process_cpu_min` mantém o padrão `5`; os 40 processos elegíveis de maior CPU são agrupados por pessoa, responsável e programa executável. Auxiliares do coletor e shells são ignorados.
 
-O modelo de privacidade por identidade substitui `servers.show_other_users`: todas as contas aparecem, mas pastas de processos, linhas de comando e nomes de jobs não são gravados nem retornados, inclusive para nosso trabalho. A API remove esses campos de snapshots antigos; gere novamente os arquivos para apagar dados antigos em disco. Configure `servers.accounts` como `{"lab": {"responsible": "Prof. Silva", "shared": true}, "guest": {"responsible": "Guest", "shared": false}}` e `servers.aliases` como `{"ana": "Ana", "bruno": "Bruno", "guest": "Guest"}`. Contas pessoais usam o alias da conta. Contas compartilhadas usam a primeira pasta de pessoa fora das pastas temporárias sob `/home/<account>/` ou `<base_dir>/<account>/`, buscando primeiro na pasta de trabalho e depois nos argumentos. Configure raízes adicionais em `servers.base_dirs` (por exemplo `/srv/storage`); `scratch`, `g16_scratch`, `tmp`, `software`, `opt` e `bin` são ignorados. Pessoas desconhecidas aparecem como `? (conta)`. `servers.workspaces` associa prefixos completos a nomes de workspace; correspondências mostram `servers.workspace_owner` mais o workspace. Somente esses prefixos atribuem o trabalho ao workspace. O responsável vem da configuração da conta; alias ou nome da conta são o fallback. Jobs usam dono e pasta de trabalho com as mesmas regras. Execute novamente o coletor após mudar a configuração.
+O modelo de privacidade por identidade substitui `servers.show_other_users`: todas as contas aparecem, mas pastas de processos, linhas de comando e nomes de jobs não são gravados nem retornados, inclusive para nosso trabalho. A API remove esses campos de snapshots antigos; gere novamente os arquivos para apagar dados antigos em disco. Configure `servers.accounts` como `{"lab": {"responsible": "Supervisor", "shared": true}, "guest": {"responsible": "Guest", "shared": false}}` e `servers.aliases` como `{"member-a": "Member A", "member-b": "Member B", "guest": "Guest"}`. Contas pessoais usam o alias da conta. Contas compartilhadas usam a primeira pasta de pessoa fora das pastas temporárias sob `/home/<account>/` ou `<base_dir>/<account>/`, buscando primeiro na pasta de trabalho e depois nos argumentos. Configure raízes adicionais em `servers.base_dirs` (por exemplo `/srv/storage`); `scratch`, `g16_scratch`, `tmp`, `software`, `opt` e `bin` são ignorados. Pessoas desconhecidas aparecem como `? (conta)`. `servers.workspaces` associa prefixos completos a nomes de workspace; correspondências mostram `servers.workspace_owner` mais o workspace. Somente esses prefixos atribuem o trabalho ao workspace. O responsável vem da configuração da conta; alias ou nome da conta são o fallback. Jobs usam dono e pasta de trabalho com as mesmas regras. Execute novamente o coletor após mudar a configuração.
 
 ![Detalhe do uso do servidor](docs/img/servers-detail.png)
+
+
+## Ações de sessão e recibos de arquivos (2026-10-24)
+
+Configure `actions_dir` com o diretório `bin` da orquestração, `coordinator_pane` com o coordenador protegido e `orchestra_state` com o mesmo estado da Orquestra. Ações rápidas permitem fechar a sessão Claude selecionada (`fechar_space`). A aba recolhida “💤 Adormecidos” mostra workspaces sem agentes e permite acordar com `acordar_space`. Rotas autenticadas: `GET /api/adormecidos`, `POST /api/acordar` (`ws`) e `POST /api/acao` (`pane`, `acao`: `fechar`, `reiniciar`, `liberar_trava`). Falha de capacidade impede abertura; pedidos simultâneos ao mesmo alvo retornam 409. Uma resposta 200 confirma aceitação; a conclusão fica no log do script.
+
+Arquivos aparecem do mais novo para o mais antigo em cada inbox/outbox. “Marcar como baixado” dispensa baixar os bytes; “Marcar como não baixado” desfaz. A opção “Não baixados” filtra a lista. `POST /api/entregas/ocultar` recebe `pane`, `kind`, `name`, `marcar` (`baixado`/`nao_baixado`), com autorização e validação de caminhos. Os eventos privados de `file-marks.jsonl` identificam a versão por caminho/tamanho/mtime; substituir o arquivo reinicia a marcação. O índice central da instalação foi adaptado às pastas por workspace deste repositório. Catálogo privado, prévias e estrutura de pesquisa não são importados.
+
+Validação: `python .github/scripts/check.py`, com arquivos novos no índice. Os testes usam agentes falsos e transporte HTTP em memória quando TCP não está disponível; não verificam navegador real nem o ciclo com herdr instalado.

@@ -143,9 +143,9 @@ Run from the root of this repository:
    cp config.example.json ~/.config/mge-agentportal/config.json
    ```
 
-   The example starts on loopback, finds `herdr` on the `PATH`, and leaves notifications and workspace hiding unconfigured. Set `dono` to your name (`"Ana"` is fictional); if needed, set `herdr` to its absolute executable path and `aviso_cmd` to your notification command. Add sensitive workspace IDs, labels, or absolute folder prefixes (fictional example: `/home/ana/projects/private`) to `ocultos_na_internet`. If you need the private entry point over the Tailscale network, add this machine's address without opening the private port to the internet.
+   The example starts on loopback, finds `herdr` on the `PATH`, and leaves notifications and workspace hiding unconfigured. Set `dono` to your name (`"Member A"` is fictional); if needed, set `herdr` to its absolute executable path and `aviso_cmd` to your notification command. Add sensitive workspace IDs, labels, or absolute folder prefixes (fictional example: `/home/user/projects/private`) to `ocultos_na_internet`. If you need the private entry point over the Tailscale network, add this machine's address without opening the private port to the internet.
 
-   Fill `hosts_permitidos` with the Hosts actually used: `127.0.0.1:8787`, `localhost:8787`, `127.0.0.1:8788`, the private Host if applicable, and `minha-maquina.tailnet-exemplo.ts.net` replaced with your machine's name. An empty list disables Host checking.
+   Fill `hosts_permitidos` with the Hosts actually used: `127.0.0.1:8787`, `localhost:8787`, `127.0.0.1:8788`, the private Host if applicable, and `portal.example.org` replaced with your machine's name. An empty list disables Host checking.
 
 3. Start and check the service:
 
@@ -162,7 +162,7 @@ Run from the root of this repository:
    sudo tailscale funnel --bg 8788
    ```
 
-   Use the HTTPS URL reported by the command; in this document, the example is `https://minha-maquina.tailnet-exemplo.ts.net/spaces`.
+   Use the HTTPS URL reported by the command; in this document, the example is `https://portal.example.org/spaces`.
 
 5. Approve the first device. On it, open the public URL, sign in with the key, enter a name, and request access. In the private session open on the machine, go to **Access**, find the request, and enter the code shown by the new device. Once approved, it signs in automatically. Subsequent devices can be approved from the private session or an already approved device.
 
@@ -198,7 +198,7 @@ Existing Portuguese names remain part of the public interface: `chave` means “
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `dono` | `"dono"` | Name in the message prefix; the example uses `"Ana"`. |
+| `dono` | `"dono"` | Name in the message prefix; the example uses `"Member A"`. |
 | `herdr` | Executable on the `PATH` or `~/.local/bin/herdr` | Executable path or name on the `PATH`. |
 | `enderecos_privados` | `[["127.0.0.1", 8787]]` | Address and port pairs requiring only the key. Use ports different from `porta_publica`. |
 | `porta_publica` | `8788` | Local port published by Funnel; always on `127.0.0.1`. |
@@ -275,6 +275,15 @@ The test suite automatically uses the real HTTP handler over in-memory byte stre
 
 Click a server ring or card (Enter/Space also works) to see **who is running**: cores per person, responsible person, program and process count, memory and running time. Scheduler jobs are grouped by person and state, with job count, allocated cores and longest running time. `servers.process_cpu_min` keeps its default of `5`; the top 40 qualifying processes are grouped by person, responsible person and executable program. Collector helpers and shells are skipped.
 
-The identity-only privacy model replaces `servers.show_other_users`: all accounts remain visible, but no process working directories, command lines or scheduler job names are stored or returned, including for our own work. Old snapshots are stripped of those fields at the API boundary; regenerate them to remove old on-disk data. Configure `servers.accounts` as `{"lab": {"responsible": "Prof. Silva", "shared": true}, "guest": {"responsible": "Guest", "shared": false}}` and `servers.aliases` as `{"ana": "Ana", "bruno": "Bruno", "guest": "Guest"}`. Personal accounts use their aliased account name. Shared accounts use the first non-scratch person folder under `/home/<account>/` or `<base_dir>/<account>/`, searching the working directory then command arguments. Set `servers.base_dirs` for additional roots (for example `/srv/storage`); `scratch`, `g16_scratch`, `tmp`, `software`, `opt` and `bin` are ignored. Unknown people show `? (account)`. `servers.workspaces` maps complete path prefixes to workspace labels; matching work shows `servers.workspace_owner` plus the workspace. This prefix mapping alone determines workspace attribution. Responsible names come from accounts; aliases/account names provide the fallback. Scheduler jobs use their owner and working directory under the same rules. Re-run the collector after changing configuration.
+The identity-only privacy model replaces `servers.show_other_users`: all accounts remain visible, but no process working directories, command lines or scheduler job names are stored or returned, including for our own work. Old snapshots are stripped of those fields at the API boundary; regenerate them to remove old on-disk data. Configure `servers.accounts` as `{"lab": {"responsible": "Supervisor", "shared": true}, "guest": {"responsible": "Guest", "shared": false}}` and `servers.aliases` as `{"member-a": "Member A", "member-b": "Member B", "guest": "Guest"}`. Personal accounts use their aliased account name. Shared accounts use the first non-scratch person folder under `/home/<account>/` or `<base_dir>/<account>/`, searching the working directory then command arguments. Set `servers.base_dirs` for additional roots (for example `/srv/storage`); `scratch`, `g16_scratch`, `tmp`, `software`, `opt` and `bin` are ignored. Unknown people show `? (account)`. `servers.workspaces` maps complete path prefixes to workspace labels; matching work shows `servers.workspace_owner` plus the workspace. This prefix mapping alone determines workspace attribution. Responsible names come from accounts; aliases/account names provide the fallback. Scheduler jobs use their owner and working directory under the same rules. Re-run the collector after changing configuration.
 
 ![Server usage detail](docs/img/en/servers-detail.png)
+
+
+## Session actions and file receipts (2026-10-24)
+
+Set `actions_dir` to the orchestration `bin` directory, `coordinator_pane` to the protected coordinator and `orchestra_state` to the same state root as Orquestra. Quick actions include closing the selected Claude session (`fechar_space`). The collapsed Sleeping section lists workspaces without agents and wakes them using `acordar_space`. Authenticated routes: `GET /api/adormecidos`, `POST /api/acordar` (`ws`) and `POST /api/acao` (`pane`, `acao`: `fechar`, `reiniciar`, `liberar_trava`). Capacity failure prevents wake-up; concurrent requests for the same target return 409. Scripts keep background computations alive and log eventual completion; a 200 response means accepted, not completed.
+
+Files are listed newest first per inbox/outbox. Use “Mark as downloaded” without transferring bytes; “Mark as not downloaded” reverses it. The Not downloaded checkbox filters the list. `POST /api/entregas/ocultar` accepts `pane`, `kind`, `name`, `marcar` (`baixado`/`nao_baixado`), after the same authorization/path checks as download. Private `file-marks.jsonl` events identify each path/size/mtime version. Replacing a file resets the receipt mark. This adapts the installation's central delivery-index events to this repository's workspace folders; it does not import its private catalog, previews or research-specific layout. See `orquestra/docs/DELIVERIES.md` in the companion Orquestra repository when configuring a shared delivery outbox.
+
+Validate with `python .github/scripts/check.py` after staging new files. Tests use fake agents and an in-memory HTTP transport when TCP sockets are unavailable; they do not verify a real browser or installed herdr lifecycle.

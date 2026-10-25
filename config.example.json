@@ -1,5 +1,5 @@
 {
-  "dono": "Ana",
+  "dono": "Member A",
   "herdr": "herdr",
   "enderecos_privados": [
     [
@@ -64,7 +64,7 @@
     ],
     "accounts": {
       "lab": {
-        "responsible": "Prof. Silva",
+        "responsible": "Supervisor",
         "shared": true
       },
       "guest": {
@@ -73,8 +73,8 @@
       }
     },
     "aliases": {
-      "ana": "Ana",
-      "bruno": "Bruno",
+      "member-a": "Member A",
+      "member-b": "Member B",
       "guest": "Guest"
     },
     "base_dirs": [
@@ -92,5 +92,8 @@
         "outbox": "deliveries"
       }
     }
-  }
+  },
+  "actions_dir": "~/tools/MGE-UAH-Orquestra/orquestra/bin",
+  "orchestra_state": "~/.local/state/mge-orchestra",
+  "coordinator_pane": "w1:p1"
 }

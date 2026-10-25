@@ -24,11 +24,11 @@ NODE = '''banner
 Filesystem 1024-blocks Used Available Capacity Mounted on
 /dev/disk 10000 9200 800 92% /scratch
 @@PROCS
-12|ana|200|1024|90|python|/srv/projects/docs-guide/run
+12|member-a|200|1024|90|python|/srv/projects/docs-guide/run
 13|guest|100|2048|60|solver|/srv/other
 14|guest|50|256|30|python|/srv/projects/docs-guide2
 '''
-OPTIONS = {'users':['ana'], 'workspaces':{'/srv/projects/docs-guide':'docs-guide'}}
+OPTIONS = {'users':['member-a'], 'workspaces':{'/srv/projects/docs-guide':'docs-guide'}}
 
 
 class CollectorTest(unittest.TestCase):
@@ -45,8 +45,8 @@ class CollectorTest(unittest.TestCase):
 
     def test_heavy_processes(self):
         lines = [
-            'ana|1|200|1-02:03:04|1024|/srv/projects/docs-guide|python run.py',
-            'ana|2|5|00:30|512|/srv/projects/docs-guide|python other.py',
+            'member-a|1|200|1-02:03:04|1024|/srv/projects/docs-guide|python run.py',
+            'member-a|2|5|00:30|512|/srv/projects/docs-guide|python other.py',
             'guest|3|50|02:00|256||solver sample.in --flag|pipe',
             'guest|4|10|01:00|256||solver sample.in --more',
             'guest|5|4.9|00:10|256||ignored',
@@ -71,28 +71,28 @@ class CollectorTest(unittest.TestCase):
 
     def test_person_derivation_and_programs(self):
         options = dict(OPTIONS, accounts={
-            'lab': {'responsible': 'Prof. Silva', 'shared': True},
+            'lab': {'responsible': 'Supervisor', 'shared': True},
             'guest': {'responsible': 'Guest supervisor', 'shared': False}},
-            aliases={'ana': 'Ana', 'bruno': 'Bruno', 'guest': 'Visitor'},
-            base_dirs=['/srv/storage'], workspace_owner='Portal team')
+            aliases={'member-a': 'Member A', 'member-b': 'Member B', 'guest': 'Visitor'},
+            base_dirs=['/srv/storage', '/srv/accounts'], workspace_owner='Portal team')
         for cwd, command, expected in (
-            ('/home/lab/ana/run', '', 'Ana'),
-            ('/srv/storage/lab/bruno/run', '', 'Bruno'),
-            ('/home/lab/scratch/run', 'orca /home/lab/ana/input', 'Ana'),
-            ('/home/lab/g16_scratch/run', '', '? (lab)'),
-            ('/home/lab/software/run', '', '? (lab)'),
-            ('/home/lab/opt/run', '', '? (lab)'),
-            ('/home/lab/bin/run', '', '? (lab)'),
-            ('/home/lab2/ana/run', '', '? (lab)'),
+            ('/srv/accounts/lab/member-a/run', '', 'Member A'),
+            ('/srv/storage/lab/member-b/run', '', 'Member B'),
+            ('/srv/accounts/lab/scratch/run', 'orca /srv/accounts/lab/member-a/input', 'Member A'),
+            ('/srv/accounts/lab/g16_scratch/run', '', '? (lab)'),
+            ('/srv/accounts/lab/software/run', '', '? (lab)'),
+            ('/srv/accounts/lab/opt/run', '', '? (lab)'),
+            ('/srv/accounts/lab/bin/run', '', '? (lab)'),
+            ('/srv/accounts/lab2/member-a/run', '', '? (lab)'),
             ('/srv/projects/docs-guide/run', '', 'Portal team · docs-guide'),
             ('', 'python /srv/projects/docs-guide/run.py', 'Portal team · docs-guide')):
             person = collector.identity('lab', cwd, command, options)
             self.assertEqual(person['person'], expected)
-            self.assertEqual(person['responsible'], 'Prof. Silva')
-        self.assertEqual(collector.identity('guest', '/home/guest/ana', '', options)['person'], 'Visitor')
-        jobs = collector.parse_jobs(['1|private-job|lab|RUNNING|8|01:00|/srv/storage/lab/bruno/run'], 'slurm', options)
-        self.assertEqual(jobs[0]['person'], 'Bruno')
-        self.assertEqual(jobs[0]['responsible'], 'Prof. Silva')
+            self.assertEqual(person['responsible'], 'Supervisor')
+        self.assertEqual(collector.identity('guest', '/srv/accounts/guest/member-a', '', options)['person'], 'Visitor')
+        jobs = collector.parse_jobs(['1|private-job|lab|RUNNING|8|01:00|/srv/storage/lab/member-b/run'], 'slurm', options)
+        self.assertEqual(jobs[0]['person'], 'Member B')
+        self.assertEqual(jobs[0]['responsible'], 'Supervisor')
         self.assertFalse({'cwd', 'command', 'name'} & jobs[0].keys())
         for executable, expected in (('l502.exe', 'Gaussian'), ('orca', 'ORCA'),
                 ('cpmd.x', 'CPMD'), ('gmx_mpi', 'GROMACS'), ('xtb', 'xTB'),
@@ -104,17 +104,17 @@ class CollectorTest(unittest.TestCase):
                    'collect_servers.py', 'python scripts/collect_servers.py',
                    'python3 collect_servers.py']
         self.assertEqual(collector.parse_heavy([
-            f'lab|1|100|00:01|1|/home/lab/ana|{program}' for program in skipped], options), [])
-        snapshot = collector.parse_output(NODE + '\n15|lab|100|1|1|python3 collect_servers.py|/home/lab/ana\n16|lab|100|1|1|orca /home/lab/bruno/input|/home/lab/scratch', {'name': 'sample'}, options)
+            f'lab|1|100|00:01|1|/srv/accounts/lab/member-a|{program}' for program in skipped], options), [])
+        snapshot = collector.parse_output(NODE + '\n15|lab|100|1|1|python3 collect_servers.py|/srv/accounts/lab/member-a\n16|lab|100|1|1|orca /srv/accounts/lab/member-b/input|/srv/accounts/lab/scratch', {'name': 'sample'}, options)
         self.assertFalse(any(row['program'] == 'Python' and row['owner'] == 'lab' for row in snapshot['processes']))
-        self.assertTrue(any(row['person'] == 'Bruno' for row in snapshot['processes']))
+        self.assertTrue(any(row['person'] == 'Member B' for row in snapshot['processes']))
         self.assertTrue(all(not {'cwd', 'command'} & row.keys() for row in snapshot['processes']))
 
     def test_pbs_continuations_and_running_counts(self):
         text = NODE + '''@@PBS
 Job Id: 17.cluster
     Job_Name = docs-build
-    Job_Owner = ana@node
+    Job_Owner = member-a@node
     job_state = R
     Resource_List.nodes = 2:ppn=4
     Variable_List = A=B,
@@ -137,7 +137,7 @@ Job Id: 18.cluster
         self.assertEqual([row['cores'] for row in jobs], [20, 20])
 
     def test_slurm_and_timeout(self):
-        text = NODE + '@@SLURM\n42|analysis|ana|RUNNING|4|01:20|/srv/projects/docs-guide\n'
+        text = NODE + '@@SLURM\n42|analysis|member-a|RUNNING|4|01:20|/srv/projects/docs-guide\n'
         host = {'name':'lab-cluster-a','ssh':'lab-cluster-a','scheduler':'slurm'}
         with mock.patch.object(collector.subprocess,'run',return_value=mock.Mock(stdout=text)) as run:
             row = collector.collect(host, OPTIONS)

@@ -65,7 +65,7 @@ def transcricao() -> str:
             'Terminei a primeira passada no guia de instalação:\n\n- **42 links** conferidos; **2 estão sem destino**.\n'
             '- O exemplo de configuração está incompleto.\n- Na seção de requisitos, falta a versão mínima do Python.\n\nQuer que eu corrija os links e complete o exemplo?')),
             model='claude-opus-5-5', usage={'input_tokens': 4, 'cache_read_input_tokens': 182000, 'cache_creation_input_tokens': 3200})),
-        linha('user', '2026-10-13T13:05:40', message={'role': 'user', 'content': '[Recado do Ana pelo portal] Sim, corrija os links e complete o exemplo.'}),
+        linha('user', '2026-10-13T13:05:40', message={'role': 'user', 'content': '[Recado do Member A pelo portal] Sim, corrija os links e complete o exemplo.'}),
         linha('assistant', '2026-10-13T13:05:52', message=msg('assistant', tool('Edit', 'docs/instalacao.md'), tool('Bash', 'export API_KEY=sk-demo-123456 && python3 scripts/conferir_links.py'))),
         linha('assistant', '2026-10-13T13:07:15', message=dict(msg('assistant', texto(
             'Pronto: os dois links agora têm destino, e o exemplo de configuração está completo.\n\n'
@@ -119,7 +119,7 @@ def montar(base: Path) -> dict:
     token = secrets.token_urlsafe(32)
     (cfgdir / 'token').write_text(token + '\n')
     (cfgdir / 'config.json').write_text(json.dumps(dict(
-        dono='Ana', herdr=str(herdr), enderecos_privados=[['127.0.0.1', priv]], porta_publica=pub,
+        dono='Member A', herdr=str(herdr), enderecos_privados=[['127.0.0.1', priv]], porta_publica=pub,
         hosts_permitidos=[f'127.0.0.1:{priv}', f'127.0.0.1:{pub}'], ocultos_na_internet=['privado'],
         servers=dict(snapshot=str(cfgdir / 'servers.json'), history=str(cfgdir / 'history.json')),
         painel=dict(enabled=True, project_root=str(projetos)),
@@ -148,15 +148,15 @@ def server_snapshot():
             disks=[dict(mount='/srv/projects', percent=62, total=2*1024**4, available=800*1024**3),
                    dict(mount='/scratch', percent=92, total=1024**4, available=80*1024**3)],
             scheduler='none' if name == 'lab-cluster-a' else 'pbs',
-            heavy_processes=[dict(owner='lab', person='Ana', responsible='Prof. Silva', program='Gaussian', cpu=240, ram=3*1024**3, elapsed=4200, count=2, ours=False, workspace=''),
-                             dict(owner='lab', person='Bruno', responsible='Prof. Silva', program='ORCA', cpu=180, ram=2*1024**3, elapsed=2400, count=3, ours=False, workspace=''),
+            heavy_processes=[dict(owner='lab', person='Member A', responsible='Supervisor', program='Gaussian', cpu=240, ram=3*1024**3, elapsed=4200, count=2, ours=False, workspace=''),
+                             dict(owner='lab', person='Member B', responsible='Supervisor', program='ORCA', cpu=180, ram=2*1024**3, elapsed=2400, count=3, ours=False, workspace=''),
                              dict(owner='guest', person='Guest', responsible='Guest', program='Python', cpu=100, ram=1024**3, elapsed=1200, count=1, ours=False, workspace=''),
-                             dict(owner='lab', person='Portal team · docs-guide', responsible='Prof. Silva', program='Python', cpu=ours*100, ram=8*1024**3, elapsed=4200, count=2, ours=True, workspace='docs-guide')],
-            processes=[dict(owner='lab', person='Portal team · docs-guide', responsible='Prof. Silva', workspace='docs-guide',
+                             dict(owner='lab', person='Portal team · docs-guide', responsible='Supervisor', program='Python', cpu=ours*100, ram=8*1024**3, elapsed=4200, count=2, ours=True, workspace='docs-guide')],
+            processes=[dict(owner='lab', person='Portal team · docs-guide', responsible='Supervisor', workspace='docs-guide',
                             ours=True, cpu=ours*100, ram=8*1024**3, count=2, elapsed=4200, program='Python')],
-            jobs=[] if name == 'lab-cluster-a' else [dict(id='101', person='Ana', responsible='Prof. Silva', owner='lab', workspace='docs-guide', ours=True,
+            jobs=[] if name == 'lab-cluster-a' else [dict(id='101', person='Member A', responsible='Supervisor', owner='lab', workspace='docs-guide', ours=True,
                        cores=ours, state='R', elapsed='01:10:00'),
-                  dict(id='102', person='Bruno', responsible='Prof. Silva', owner='lab', workspace='', ours=False,
+                  dict(id='102', person='Member B', responsible='Supervisor', owner='lab', workspace='', ours=False,
                        cores=used-ours, state='R', elapsed='00:40:00'),
                   dict(id='103', person='Guest', responsible='Guest', owner='guest', workspace='', ours=False,
                        cores=4, state='Q', elapsed='00:00:00')]))

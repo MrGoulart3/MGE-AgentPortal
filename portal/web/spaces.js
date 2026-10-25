@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
 const T = {
-  "pt": {
+  "pt": {"sleeping":"Adormecidos","wake":"Acordar","closeSpace":"Fechar space",
     "subtitle": "Conversa com os agentes de IA do herdr",
     "accessKey": "Chave de acesso",
     "loginHelp": "Digite a chave do portal. Pela internet, cada aparelho novo também precisa da aprovação do dono.",
@@ -145,7 +145,7 @@ const T = {
     "pcPanel": "Recursos do PC",
     "panelOpenError": "Não foi possível abrir o painel. Entre novamente no portal."
   },
-  "en": {
+  "en": {"sleeping":"Sleeping","wake":"Wake","closeSpace":"Close space",
     "subtitle": "Chat with herdr AI agents",
     "accessKey": "Access key",
     "loginHelp": "Enter the portal key. Over the internet, each new device also needs approval from the owner.",
@@ -654,6 +654,11 @@ async function tecla(k) {
   catch (err) { msgErro(err); setTimeout(atualizar, 300) }
 }
 $('acoes').onclick = async e => {   // quick replies go straight to the agent; the draft and attachments stay put
+  const action = e.target.closest('[data-acao]');
+  if (action && atual) {
+    try { const d = await api('/api/acao', {pane:atual,acao:action.dataset.acao}); msg(d.msg,true); } catch (err) { msg(err.message,false); }
+    return;
+  }
   const b = e.target.closest('[data-rapido]'); if (!b || !atual) return;
   const texto = t(b.dataset.rapido);
   try { await api('/api/enviar', {pane: atual, texto, agora: true}); msg(t('quickSent', {text: texto}), true); ultRecados = 0; setTimeout(atualizar, 1000) } catch (err) { msg(err.message, false) }
@@ -816,4 +821,18 @@ $('abrirPainel').onclick = async () => {
     painel.document.open(); painel.document.write(html); painel.document.close();
     painel.history.replaceState(null, '', '/painel');
   } catch (_) { painel.close(); $('status').textContent = t('panelOpenError'); }
+};
+
+$('dorm').addEventListener('toggle', async () => {
+  if (!$('dorm').open) return;
+  try {
+    const d = await api('/api/adormecidos');
+    $('dormlista').innerHTML = d.spaces.map(s => '<p>' + esc(s.workspace) + ' <button class="b" data-ws="' + esc(s.ws) + '">' + esc(t('wake')) + '</button></p>').join('');
+  } catch (err) { msg(err.message,false); }
+});
+$('dormlista').onclick = async e => {
+  const button = e.target.closest('[data-ws]'); if (!button) return;
+  button.disabled = true;
+  try { const d = await api('/api/acordar',{ws:button.dataset.ws}); msg(d.msg,true); }
+  catch (err) { msg(err.message,false); button.disabled = false; }
 };

@@ -11,7 +11,7 @@
     if (data.workspaces.some(row => row.pane === selected)) $('workspace').value = selected;
     $('limit').textContent = t('limit') + ': ' + data.max_mb + ' MiB';
     const workspace = data.workspaces.find(row => row.pane === $('workspace').value);
-    $('list').innerHTML = ['inbox','outbox'].map(kind => '<h2>' + e(t(kind)) + '</h2>' + ((workspace?.files || []).filter(row => row.kind === kind).map(row => '<div class="file"><span>' + e(row.name) + ' <small>' + (row.size/1024).toFixed(1) + ' KiB</small></span><button data-name="' + e(row.name) + '" data-kind="' + kind + '">' + e(t('download')) + '</button></div>').join('') || '<p class="muted">' + e(t('empty')) + '</p>')).join('');
+    $('list').innerHTML = ['inbox','outbox'].map(kind => '<h2>' + e(t(kind)) + '</h2>' + ((workspace?.files || []).filter(row => row.kind === kind && (!$('unread').checked || !row.baixado)).sort((a,b) => b.mtime-a.mtime).map(row => '<div class="file"><span>' + e(row.name) + ' <small>' + (row.size/1024).toFixed(1) + ' KiB</small></span><button data-name="' + e(row.name) + '" data-kind="' + kind + '">' + e(t('download')) + '</button><button data-mark="' + (row.baixado ? 'nao_baixado' : 'baixado') + '" data-name="' + e(row.name) + '" data-kind="' + kind + '">' + e(t(row.baixado ? 'markUnread' : 'markDownloaded')) + '</button></div>').join('') || '<p class="muted">' + e(t('empty')) + '</p>')).join('');
     $('upload').hidden = !workspace;
   }
   async function update() {
@@ -19,13 +19,21 @@
     catch (error) { $('status').textContent = error.message; }
   }
   $('workspace').onchange = render;
+  $('unread').onchange = render;
   $('list').onclick = async event => {
     if (!event.target.dataset.name) return;
+    if (event.target.dataset.mark) {
+      try {
+        await request('/api/entregas/ocultar', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pane:$('workspace').value,kind:event.target.dataset.kind,name:event.target.dataset.name,marcar:event.target.dataset.mark})});
+        await update();
+      } catch (error) { $('status').textContent = error.message; }
+      return;
+    }
     const params = new URLSearchParams({pane:$('workspace').value,kind:event.target.dataset.kind,name:event.target.dataset.name});
     try {
       const blob = await (await request('/api/files/download?' + params)).blob();
       const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = event.target.dataset.name;
-      link.click(); setTimeout(() => URL.revokeObjectURL(link.href),1000);
+      link.click(); await update(); setTimeout(() => URL.revokeObjectURL(link.href),1000);
     } catch (error) { $('status').textContent = error.message; }
   };
   $('upload').onsubmit = async event => {

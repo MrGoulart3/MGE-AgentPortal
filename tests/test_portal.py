@@ -208,7 +208,7 @@ class PortalTest(unittest.TestCase):
         s, _, _ = self.req(False, 'POST', '/api/enviar', {'pane': 'w3:p1', 'texto': 'linha 1\nlinha 2\x1b[2J'}, self.K)
         self.assertEqual(s, 200)
         ult = json.loads(self.d['estado'].with_suffix('.log').read_text().splitlines()[-1])
-        self.assertEqual(ult['texto'], '[Recado do Ana pelo portal] linha 1\nlinha 2 [2J')
+        self.assertEqual(ult['texto'], '[Recado do Member A pelo portal] linha 1\nlinha 2 [2J')
 
     def test_corpos_invalidos(self):
         self.assertEqual(self.req(False, 'POST', '/api/enviar', b'[]', {**self.K, 'Content-Type': 'application/json'})[0], 400)
@@ -271,7 +271,7 @@ class UnidadeTest(unittest.TestCase):
         self.assertTrue(d['opcoes'][0]['marcada'])
 
     def test_dialogo_confianca(self):
-        d = self.p.dialogo(' Do you trust the files in this folder?\n\n /home/ana/projects/example\n\n ❯ 1. Yes, proceed\n   2. No, exit\n')
+        d = self.p.dialogo(' Do you trust the files in this folder?\n\n /home/user/projects/example\n\n ❯ 1. Yes, proceed\n   2. No, exit\n')
         self.assertEqual(len(d['opcoes']), 2)
         self.assertIn('trust', d['pergunta'])
 

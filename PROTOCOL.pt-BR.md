@@ -43,9 +43,9 @@ scripts/portal-ctl chave
 cp config.example.json ~/.config/mge-agentportal/config.json
 ```
 
-Edite a cópia. Substitua o nome fictício `Ana` pelo seu nome. O exemplo encontra herdr no `PATH`, começa com a entrada privada `[["127.0.0.1", 8787]]` e deixa notificações e ocultação de workspaces sem configuração. Se precisar acessar pela rede Tailscale, configure o endereço privado correto apenas na sua cópia local. O comando `chave` acima gera uma chave. Os demais nomes em português são explicados no [README.pt-BR.md](README.pt-BR.md#configuração).
+Edite a cópia. Substitua o nome fictício `Member A` pelo seu nome. O exemplo encontra herdr no `PATH`, começa com a entrada privada `[["127.0.0.1", 8787]]` e deixa notificações e ocultação de workspaces sem configuração. Se precisar acessar pela rede Tailscale, configure o endereço privado correto apenas na sua cópia local. O comando `chave` acima gera uma chave. Os demais nomes em português são explicados no [README.pt-BR.md](README.pt-BR.md#configuração).
 
-Preencha `hosts_permitidos` com os valores exatos usados pelo navegador e pelo proxy, incluindo `minha-maquina.tailnet-exemplo.ts.net` substituído pelo nome da sua máquina. Defina `ocultos_na_internet` por IDs, rótulos ou prefixos de pastas. Mantenha `upload_pasta` relativa e confira permissões do diretório de configuração e de pastas de upload já existentes.
+Preencha `hosts_permitidos` com os valores exatos usados pelo navegador e pelo proxy, incluindo `portal.example.org` substituído pelo nome da sua máquina. Defina `ocultos_na_internet` por IDs, rótulos ou prefixos de pastas. Mantenha `upload_pasta` relativa e confira permissões do diretório de configuração e de pastas de upload já existentes.
 
 ## 6. Validar sem agentes reais
 
@@ -93,7 +93,7 @@ Publique a entrada pública:
 sudo tailscale funnel --bg 8788
 ```
 
-Abra a URL HTTPS informada pelo comando no aparelho novo. Exemplo fictício: `https://minha-maquina.tailnet-exemplo.ts.net/spaces`. Digite a chave, nomeie o aparelho e peça acesso. Ele exibirá um código de seis dígitos.
+Abra a URL HTTPS informada pelo comando no aparelho novo. Exemplo fictício: `https://portal.example.org/spaces`. Digite a chave, nomeie o aparelho e peça acesso. Ele exibirá um código de seis dígitos.
 
 Na máquina, pela sessão privada em `http://127.0.0.1:8787/spaces`, abra **Acessos**, identifique o pedido e digite o código mostrado no aparelho novo. Não aprove só pelo nome: o código vincula a aprovação ao pedido observado. Há três tentativas e prazo de 15 minutos. Depois, aparelhos já aprovados também podem autorizar novos pedidos.
 

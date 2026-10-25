@@ -39,6 +39,9 @@ CONFIG_PADRAO = dict(
     janela_contexto=1_000_000,
     cache_uso=str(Path.home() / '.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json'),
     painel=dict(enabled=False),                      # optional Linux PC collector
+    actions_dir=str(Path.home() / 'bin'),
+    coordinator_pane='',
+    orchestra_state=str(Path.home() / '.local/state/mge-orchestra'),
     upload_mb=25,
     upload_pasta='_recebidos_portal',
 )
@@ -310,6 +313,34 @@ def space(pane: str, publico: bool) -> dict | None:
         return None
     return next((r for r in visiveis(publico) if r['pane'] == pane), None)
 
+
+def adormecidos(publico: bool) -> list:
+    """Workspaces sem Claude/Codex aberto (23/10): rótulo, pasta e quando o CONTINUIDADE mudou."""
+    try:
+        labels = {w['workspace_id']: w['label'] for w in json.loads(herdr('workspace', 'list').stdout)['result']['workspaces']}
+        panes = json.loads(herdr('pane', 'list').stdout)['result']['panes']
+    except (ValueError, KeyError, OSError, subprocess.TimeoutExpired):
+        return []
+    com_agente = {p['workspace_id'] for p in panes if p.get('agent')}
+    rows = []
+    for ws, label in labels.items():
+        if ws in com_agente:
+            continue
+        cwd = next((p.get('cwd', '') for p in panes if p['workspace_id'] == ws), '')
+        try:
+            desde = time.strftime('%d/%m %H:%M', time.localtime((Path(cwd) / 'CONTINUIDADE.md').stat().st_mtime))
+        except OSError:
+            desde = ''
+        r = dict(ws=ws, workspace=label, cwd=cwd, desde=desde)
+        if not (publico and oculto(r)):
+            rows.append(r)
+    rows.sort(key=lambda r: r['workspace'].lower())
+    return rows
+
+
+
+_ACORDANDO: dict = {}
+_REINICIO: dict = {}
 
 # ---------------------------------------------------------------- recados
 def registrar(pane: str, tipo: str, texto: str, aparelho: str = '') -> None:
@@ -784,6 +815,10 @@ class PortalMixin:
             ('POST', '/api/depois/agora'): self.r_depois_agora,
             ('POST', '/api/enviar'): self.r_enviar, ('POST', '/api/tecla'): self.r_tecla,
             ('POST', '/api/arquivo'): self.r_arquivo,
+            ('GET', '/api/adormecidos'): self.r_adormecidos,
+            ('POST', '/api/acordar'): self.r_acordar,
+            ('POST', '/api/acao'): self.r_acao,
+            ('POST', '/api/entregas/ocultar'): self.r_entrega_ocultar,
             ('POST', '/api/files/upload'): self.r_arquivo,
             ('GET', '/api/files'): self.r_files, ('GET', '/api/files/download'): self.r_download,
             ('POST', '/api/acesso/pedir'): self.r_pedir, ('GET', '/api/acesso/estado'): self.r_estado,
@@ -796,7 +831,7 @@ class PortalMixin:
             return False
         try:
             fn(q)
-        except (OSError, RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError) as erro:
+        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError, KeyError) as erro:
             print(f'portal: erro em {url.path}: {erro!r}', flush=True)
             self.json_reply(502, dict(erro='o PC não respondeu agora; tente de novo'))
         return True
@@ -922,6 +957,77 @@ class PortalMixin:
             depois_gravar(fica)
         self.json_reply(200, dict(ok=True, removido=len(itens) - len(fica)))
 
+    def r_acao(self, q):
+        with LOCK:
+            return self._r_acao(q)
+
+    def _r_acao(self, q):
+        """Botões do Portal (22/10): reiniciar ou fechar (23/10) a sessão do space ou liberar a trava de créditos até a janela renovar."""
+        if not self.authorized():
+            return
+        data = self.corpo_json()
+        if data is None:
+            return
+        sp = space(str(data.get('pane', '')), self.public)
+        acao = str(data.get('acao', ''))
+        cmd = {'reiniciar': ['reiniciar_space', '--forcar'], 'fechar': ['fechar_space'], 'liberar_trava': ['trava_excecao']}.get(acao)
+        if not sp or not cmd or sp['agent'] != 'claude':
+            return self.json_reply(400, dict(erro='space ou ação inválidos'))
+        exe = str(Path(CFG['actions_dir']).expanduser() / cmd[0])
+        rein = Path(CFG['orchestra_state']).expanduser() / 'reinicio'
+        if acao == 'reiniciar' and (rein / f"{sp['pane']}.cancelar").exists():
+            return self.json_reply(409, dict(erro='o reinício deste space foi cancelado (reiniciar_space ' + sp['pane'] + ' --liberar)'))
+        if acao == 'reiniciar' and _REINICIO.get(sp['pane']) and _REINICIO[sp['pane']].poll() is None:
+            return self.json_reply(409, dict(erro='já está reiniciando este space'))
+        if acao == 'fechar' and sp['pane'] == CFG.get('coordinator_pane'):
+            return self.json_reply(400, dict(erro='o diretrizes não fecha a si mesmo'))
+        if acao in ('reiniciar', 'fechar') and _REINICIO.get(sp['pane']) and _REINICIO[sp['pane']].poll() is None:
+            return self.json_reply(409, dict(erro='já há um reinício ou fechamento em curso neste space'))
+        if acao == 'fechar':   # 23/10: o space grava o CONTINUIDADE e sai; roda solto (até ~15 min); resultado em ~/.orquestra/reinicio/log
+            _REINICIO[sp['pane']] = subprocess.Popen([exe, sp['pane']], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                                     stderr=subprocess.DEVNULL, start_new_session=True)
+            texto = 'fechando: o space grava o CONTINUIDADE e encerra (stand-by)'
+        elif acao == 'reiniciar':   # demora (até ~5 min): roda solto; o resultado fica em ~/.orquestra/reinicio/log
+            _REINICIO[sp['pane']] = subprocess.Popen([exe, sp['pane'], *cmd[1:]], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                                     stderr=subprocess.DEVNULL, start_new_session=True)
+            texto = 'reiniciando a sessão (leva 1–5 min)'
+        else:
+            r = subprocess.run([exe, sp['pane']], capture_output=True, text=True, timeout=20)
+            if r.returncode != 0:
+                return self.json_reply(502, dict(erro='não consegui liberar a trava'))
+            texto = r.stdout.strip()[:200] or 'trava liberada até a janela renovar'
+        registrar(sp['pane'], 'acao', acao, self.nome_aparelho())
+        self.json_reply(200, dict(ok=True, msg=texto))
+
+    def r_adormecidos(self, q):
+        if self.authorized():
+            self.json_reply(200, dict(spaces=[{k: r[k] for k in ('ws', 'workspace', 'desde')} for r in adormecidos(self.public)]))
+
+    def r_acordar(self, q):
+        with LOCK:
+            return self._r_acordar(q)
+
+    def _r_acordar(self, q):
+        """Acorda um space adormecido (23/10): acordar_space abre o Claude com --continue; roda solto (até ~2 min)."""
+        if not self.authorized():
+            return
+        data = self.corpo_json()
+        if data is None:
+            return
+        ws = str(data.get('ws', ''))
+        sp = next((r for r in adormecidos(self.public) if r['ws'] == ws), None)
+        if not sp:
+            return self.json_reply(400, dict(erro='space não está adormecido (ou não existe)'))
+        if _ACORDANDO.get(ws) and _ACORDANDO[ws].poll() is None:
+            return self.json_reply(409, dict(erro='já está acordando este space'))
+        capacity = subprocess.run([str(Path(CFG['actions_dir']).expanduser() / 'capacidade_pc')], capture_output=True, text=True, timeout=30, check=True).stdout
+        if not capacity.strip() or any(v in capacity for v in ('LOTADO', 'LOTADA', 'FULL')):
+            return self.json_reply(503, dict(erro='PC lotado agora (capacidade_pc): não abro sessão nova'))
+        _ACORDANDO[ws] = subprocess.Popen([str(Path(CFG['actions_dir']).expanduser() / 'acordar_space'), ws], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                          stderr=subprocess.DEVNULL, start_new_session=True)
+        registrar(ws, 'acao', 'acordar', self.nome_aparelho())
+        self.json_reply(200, dict(ok=True, msg=sp['workspace'] + ': acordando (leva até 1–2 min)'))
+
     def r_tecla(self, q):
         if not self.authorized():
             return
@@ -1000,13 +1106,36 @@ class PortalMixin:
             for kind in ('inbox', 'outbox'):
                 try:
                     root = file_store.folder(sp['cwd'], sp['workspace'], CFG, kind)
-                    for path in sorted(root.iterdir()):
+                    for path in sorted(root.iterdir(), key=lambda item: item.stat().st_mtime, reverse=True):
                         if not path.name.startswith('.') and not path.is_symlink() and path.is_file():
-                            files.append(dict(name=path.name, kind=kind, size=path.stat().st_size))
+                            files.append(dict(name=path.name, kind=kind, size=path.stat().st_size,
+                                              mtime=path.stat().st_mtime,
+                                              baixado=file_store.marked(DIR, path)))
                 except (OSError, ValueError):
                     continue
             rows.append(dict(pane=sp['pane'], workspace=sp['workspace'], agent=sp['agent'], files=files))
         self.json_reply(200, dict(workspaces=rows, max_mb=CFG.get('files', {}).get('max_mb', CFG['upload_mb'])))
+
+    def r_entrega_ocultar(self, q):
+        """Records reversible download marks for an authorized workspace file."""
+        if not self.authorized():
+            return
+        data = self.corpo_json()
+        if data is None:
+            return
+        sp = space(str(data.get('pane', '')), self.public)
+        kind, mark = data.get('kind', 'outbox'), data.get('marcar')
+        if not sp or kind not in ('inbox', 'outbox') or mark not in ('baixado', 'nao_baixado'):
+            return self.json_reply(400, dict(erro='Invalid file or mark'))
+        try:
+            root = file_store.folder(sp['cwd'], sp['workspace'], CFG, kind)
+            name = file_store.filename(data.get('name', ''))
+            with file_store.open_download(root, name):
+                with LOCK:
+                    file_store.mark(DIR, root / name, mark)
+        except (OSError, ValueError):
+            return self.json_reply(400, dict(erro='Invalid file'))
+        self.json_reply(200, dict(ok=True))
 
     def r_download(self, q):
         """Download a single authorized workspace file as an attachment."""
@@ -1033,6 +1162,8 @@ class PortalMixin:
             self.end_headers()
             if self.command != 'HEAD':
                 shutil.copyfileobj(stream, self.wfile)
+                with LOCK:
+                    file_store.mark(DIR, root / name, 'baixado')
 
     # ------------- acessos
     def r_pedir(self, q):

@@ -71,7 +71,7 @@ details.mais{display:inline-block}details.mais summary{list-style:none;cursor:po
 </section>
 
 <div id="app" class="layout" hidden>
-<aside id="lista" class="card"><div class="row" id="tipos" style="margin:0 0 8px"><button class="b" type="button" data-tipo="claude">Claude</button><button class="b" type="button" data-tipo="codex">Codex</button><button class="b" type="button" data-tipo="todos" data-i18n="all">Todos</button></div><select id="sel" data-i18n-label="chooseSpace" aria-label="Escolher space"></select><div id="spaces"></div>
+<aside id="lista" class="card"><div class="row" id="tipos" style="margin:0 0 8px"><button class="b" type="button" data-tipo="claude">Claude</button><button class="b" type="button" data-tipo="codex">Codex</button><button class="b" type="button" data-tipo="todos" data-i18n="all">Todos</button></div><select id="sel" data-i18n-label="chooseSpace" aria-label="Escolher space"></select><div id="spaces"></div><details id="dorm"><summary>💤 <span data-i18n="sleeping">Adormecidos</span></summary><div id="dormlista"></div></details>
 <div class="row"><button class="b" id="vacessos" type="button"><span data-i18n="accesses">Acessos</span> <span id="npend"></span></button><button class="b" id="sair" type="button" data-i18n="logout">Sair</button></div>
 <div id="acessos" hidden style="margin-top:10px;font-size:13px"></div></aside>
 <section class="card" id="sec">
@@ -91,7 +91,7 @@ details.mais{display:inline-block}details.mais summary{list-style:none;cursor:po
 <div class="row teclas"><small class="muted" data-i18n="keys">Teclas:</small>
 <button class="b" data-k="1" type="button">1</button><button class="b" data-k="2" type="button">2</button><button class="b" data-k="3" type="button">3</button>
 <button class="b" data-k="up" type="button">↑</button><button class="b" data-k="down" type="button">↓</button><button class="b" data-k="enter" type="button">Enter</button><button class="b" data-k="esc" type="button" data-i18n="interrupt">Esc (interromper)</button></div>
-<div class="row acoes" id="acoes"><small class="muted" data-i18n="quick">Rápido:</small><button class="b" type="button" data-rapido="goAheadText" data-i18n="goAhead">▶ pode seguir</button><button class="b" type="button" data-rapido="approveText" data-i18n="approve">✔ pode publicar</button></div>
+<div class="row acoes" id="acoes"><button class="b" type="button" data-acao="fechar" data-i18n="closeSpace">Fechar space</button><small class="muted" data-i18n="quick">Rápido:</small><button class="b" type="button" data-rapido="goAheadText" data-i18n="goAhead">▶ pode seguir</button><button class="b" type="button" data-rapido="approveText" data-i18n="approve">✔ pode publicar</button></div>
 <div id="omc2" class="cartoes" data-zona="baixo" hidden></div>
 <div class="hist" id="hist"></div>
 </section>

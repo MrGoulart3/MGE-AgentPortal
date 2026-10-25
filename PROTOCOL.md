@@ -43,9 +43,9 @@ scripts/portal-ctl chave
 cp config.example.json ~/.config/mge-agentportal/config.json
 ```
 
-Edit the copy. Replace the fictional name `Ana` with your name. The example finds herdr on the `PATH`, starts with the private entry point `[["127.0.0.1", 8787]]`, and leaves notifications and workspace hiding unconfigured. If you need access over the Tailscale network, configure the correct private address only in your local copy. `chave` means “key”; the command above generates one. Other Portuguese names are explained in [README.md](README.md#configuration).
+Edit the copy. Replace the fictional name `Member A` with your name. The example finds herdr on the `PATH`, starts with the private entry point `[["127.0.0.1", 8787]]`, and leaves notifications and workspace hiding unconfigured. If you need access over the Tailscale network, configure the correct private address only in your local copy. `chave` means “key”; the command above generates one. Other Portuguese names are explained in [README.md](README.md#configuration).
 
-Fill `hosts_permitidos` with the exact values used by the browser and proxy, including `minha-maquina.tailnet-exemplo.ts.net` replaced with your machine's name. Define `ocultos_na_internet` by IDs, labels, or folder prefixes. Keep `upload_pasta` relative and check permissions on the configuration directory and existing upload folders.
+Fill `hosts_permitidos` with the exact values used by the browser and proxy, including `portal.example.org` replaced with your machine's name. Define `ocultos_na_internet` by IDs, labels, or folder prefixes. Keep `upload_pasta` relative and check permissions on the configuration directory and existing upload folders.
 
 ## 6. Validate without real agents
 
@@ -93,7 +93,7 @@ Publish the public entry point:
 sudo tailscale funnel --bg 8788
 ```
 
-Open the HTTPS URL reported by the command on the new device. Fictional example: `https://minha-maquina.tailnet-exemplo.ts.net/spaces`. Enter the key, name the device, and request access. It will display a six-digit code.
+Open the HTTPS URL reported by the command on the new device. Fictional example: `https://portal.example.org/spaces`. Enter the key, name the device, and request access. It will display a six-digit code.
 
 On the machine, through the private session at `http://127.0.0.1:8787/spaces`, open **Access**, identify the request, and enter the code shown on the new device. Do not approve by name alone: the code binds approval to the observed request. There are three attempts and a 15-minute deadline. Afterwards, already approved devices can also authorize new requests.
 
