@@ -59,5 +59,14 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, '../portal/web/spaces.js'),
   assert.ok(keys('omc2').includes('codexsem'));
   vm.runInContext('desenharStatus(null,null)', context);
   assert.ok(element('omc').hidden && element('omc2').hidden);
+  assert.equal(vm.runInContext('navDlg({})', context), '');
+  const tabs = vm.runInContext('navDlg({abas:true})', context);
+  assert.ok(tabs.includes('data-op="left"') && tabs.includes('data-op="right"'));
+  assert.ok(!tabs.includes('data-op="enter"'));
+  const multiple = vm.runInContext('navDlg({multipla:true})', context);
+  assert.ok(multiple.includes('Confirm checked (Enter)'));
+  vm.runInContext('dlgAtual={abas:true,multipla:true,pergunta:"Choose",opcoes:[]}', context);
+  assert.ok(vm.runInContext('dlgHtml()', context).includes('Next / Submit'));
+  for (const key of ['left','right','tab','space']) assert.ok(html.includes('data-k="' + key + '"'));
   console.log('Configured uploads and bilingual context rendering: OK');
 })().catch(error => {console.error(error); process.exitCode=1;});

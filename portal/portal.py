@@ -66,7 +66,7 @@ ACESSOS = DIR / 'acessos.json'
 AUDITORIA = DIR / 'auditoria.log'
 RECADOS = DIR / 'recados.log'
 PANE_RE = re.compile(r'w[0-9A-Za-z]+:p[0-9]+')
-TECLAS = {'esc', 'enter', 'up', 'down', *map(str, range(1, 10))}
+TECLAS = {'esc', 'enter', 'up', 'down', 'left', 'right', 'tab', 'space', *map(str, range(1, 10))}
 LOCK = threading.RLock()            # acessos, recados e auditoria
 BOOT = secrets.token_hex(3)
 SEGREDO_RE = re.compile(r'(?i)\b(token|senha|password|passwd|secret|api[_-]?key|authorization)(\s*[=:]\s*|\s+)'
@@ -480,6 +480,9 @@ _TELA: dict = {}   # pane -> (instante, tela): o portal consulta a cada 1,5 s; a
 FILA_RE = re.compile(r'Press up to edit queued messages|ctrl\+enter to send now')
 DICA_RE = re.compile(r'Enter to (select|confirm|submit)|Esc to cancel|to navigate')
 
+ABAS_RE = re.compile(r'✔ Submit|[☐☒✔] \S.*[☐☒✔] ')
+MULTI_RE = re.compile(r'^\s*(?:[│┃|]\s*)?(?:❯|>)?\s*\d\.\s*\[[ x✔]\]', re.M)
+
 
 def tela_recente(pane: str, ttl: float = 4.0) -> str:
     t = _TELA.get(pane)
@@ -499,8 +502,12 @@ def situacao(sp: dict) -> dict:
         return {}
     cauda_ = '\n'.join(tela.rstrip().split('\n')[-45:])
     d = dialogo(tela)
-    if d and sp['status'] != 'blocked' and not (any(o['marcada'] for o in d['opcoes']) and DICA_RE.search(cauda_)):
+    abas = bool(ABAS_RE.search(cauda_))
+    if d and sp['status'] != 'blocked' and not abas and not (any(o['marcada'] for o in d['opcoes']) and DICA_RE.search(cauda_)):
         d = None
+    if d:
+        d['abas'] = abas
+        d['multipla'] = bool(MULTI_RE.search(cauda_))
     return dict(dialogo=d, fila=bool(sp['status'] == 'working' and FILA_RE.search(cauda_)))
 
 

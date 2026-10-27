@@ -14,6 +14,11 @@ async function check(page) {
   const languages = ['en','pt'].map(lang => ({dataset:{lang},setAttribute(){}}));
   const malicious = '<img src=x onerror=alert(1)>';
   const data = page === 'servers' ? {timestamp:Date.now()/1000,history:[],servers:[{name:malicious,online:true,used:4,ours:2,cores:8,memory:{used:1,total:2},disks:[{mount:malicious,percent:92,available:1}],jobs:[{person:malicious,responsible:malicious,name:malicious,owner:malicious,workspace:malicious,ours:true,cores:2,state:'R'}],heavy_processes:[{person:malicious,responsible:malicious,program:malicious,owner:malicious,cpu:250,ram:1024,elapsed:90,cwd:malicious,command:malicious,count:2}],processes:[]}]} : {max_mb:25,workspaces:[{pane:'w1:p1',workspace:malicious,agent:'codex',files:[{name:malicious,kind:'outbox',size:100}]}]};
+  if (page === 'servers') data.servers[0].jobs.push(
+    {person:'user-a',ours:false,cores:1,state:'R'},
+    {ours:false,cores:0.5,state:'R'},
+    {person:'queued-user',ours:false,cores:8,state:'PENDING'}
+  );
   const context = vm.createContext({console,Event,AbortSignal,URLSearchParams,navigator:{language:'en'},localStorage:{getItem(){return '';},setItem(){}},sessionStorage:{getItem(){return '';}},setTimeout(){},document:{documentElement:{},querySelectorAll(selector){return selector === '[data-i18n]' ? labels : languages;},getElementById:element},fetch:async()=>({ok:true,json:async()=>data}),addEventListener:(name,callback)=>{listeners[name]=callback;}});
   context.window = context;
   context.dispatchEvent = event => listeners[event.type]?.();
@@ -25,6 +30,19 @@ async function check(page) {
     assert.ok(element(id).innerHTML.includes('&lt;img'),id+' renders supplied data');
   }
   if (page === 'servers') {
+    assert.ok(element('legends').innerHTML.includes('Our projects'));
+    assert.ok(element('legends').innerHTML.includes('Other users'));
+    assert.ok(!element('legends').innerHTML.includes('<img'));
+    assert.ok(element('summary').innerHTML.includes('ring-mark'));
+    assert.ok(element('summary').innerHTML.includes('#3579e8'));
+    assert.ok(element('summary').innerHTML.includes('#8d6e63'));
+    assert.ok(element('summary').innerHTML.includes('#9aa6b5'));
+    assert.ok(!element('legends').innerHTML.includes('queued-user'));
+    assert.ok(element('workspace-table').innerHTML.includes('background:#3579e8'));
+    const segmented = context.PortalRings.ring(50, {parts:[[20,'#123456']],mark:20});
+    assert.ok(segmented.includes('#123456'));
+    assert.ok(segmented.includes('#9aa6b5'));
+    assert.ok(context.PortalRings.ring(100,{mark:100}).includes('<circle class="ring-mark"'));
     const target = {closest:()=>({dataset:{server:'0'}})};
     for (const id of ['summary','cards']) {
       for (const key of ['Enter',' ']) {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-27
+
+- Support tabbed and multiple-choice Claude Code questions, with previous/next navigation, confirmation and Left/Right/Tab/Space keys.
+- Segment server rings by project and user, with a shared project palette, muted user colors, an outer ownership arc and usage legends.
+
 ## 2026-10-24
 
 - Add authenticated close/wake actions, dormant workspaces, reversible download marks, newest-first files and reproducible offline security/CI checks.

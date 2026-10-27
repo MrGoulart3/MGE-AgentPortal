@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id);
   let snapshot = null, filter = 'all', selected = null;
   const number = value => Number(value || 0).toFixed(1).replace(/\.0$/, '');
-  const table = (headers, rows) => '<thead><tr>' + headers.map(key => '<th>' + e(t(key === 'cores' ? 'coresHeader' : key)) + '</th>').join('') + '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map(cell => '<td>' + e(cell) + '</td>').join('') + '</tr>').join('') + '</tbody>';
+  const table = (headers, rows, firstColor) => '<thead><tr>' + headers.map(key => '<th>' + e(t(key === 'cores' ? 'coresHeader' : key)) + '</th>').join('') + '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map((cell,index) => '<td>' + (index === 0 && firstColor ? '<i class="project-dot" style="background:' + firstColor(cell) + '"></i>' : '') + e(cell) + '</td>').join('') + '</tr>').join('') + '</tbody>';
   function spark(server) {
     const history = (snapshot.history || []).filter(point => point.servers?.[server.name]);
     if (history.length < 2) return '<small>' + e(t('history')) + ' · ' + e(t('offline')) + '</small>';
@@ -16,14 +16,38 @@
     }).join(' ') + '"/>';
     return '<small>' + e(t('history')) + '</small><svg class="spark" viewBox="0 0 300 56" role="img" aria-label="' + e(t('history')) + '">' + line('used',server.cores,'#3579e8') + line('memory',100,'#25b69d') + '</svg>';
   }
+  const projectColors = ['#3579e8','#25b69d','#e0803a','#a05bd6','#d6457a','#6b8e23','#c9a100','#4aa3c7','#1f4fa8','#ff7f50','#00897b','#8e24aa'];
+  const userColors = ['#8d6e63','#7e6b9c','#5f8577','#a8805a','#6f819c','#9c6b80','#5c5c5c'];
+  const running = row => ['R','RUNNING','COMPLETING'].includes(row.state);
+  const usageRows = server => server.jobs.length ? server.jobs.filter(running) : server.processes;
+  const project = row => row.workspace || (row.ours ? t('ours') : '');
+  const identity = row => project(row) ? 'project:' + project(row) : 'user:' + (row.person || row.owner || '');
   function render() {
     if (!snapshot) return;
     document.title = t('servers');
     const servers = snapshot.servers || [];
+    const allRows = servers.filter(server => server.online).flatMap(usageRows);
+    const projects = [...new Set(allRows.map(project).filter(Boolean))].sort();
+    const users = [...new Set(allRows.filter(row => !project(row)).map(row => row.person || row.owner).filter(Boolean))].sort();
+    const projectColor = name => projects.includes(name) ? projectColors[projects.indexOf(name) % projectColors.length] : 'var(--muted)';
+    const userColor = name => name ? userColors[users.indexOf(name) % userColors.length] : '#9aa6b5';
+    const ringOptions = server => {
+      const groups = new Map();
+      usageRows(server).forEach(row => {
+        const key = identity(row);
+        groups.set(key, (groups.get(key) || 0) + Math.max(0, Number(row.cores ?? row.cpu / 100) || 0));
+      });
+      const entries = [...groups].sort(([a, x], [b, y]) => Number(b.startsWith('project:')) - Number(a.startsWith('project:')) || y - x);
+      const total = Math.max(1, Number(server.cores) || 0);
+      return {parts:entries.map(([key, value]) => [100 * value / total, key.startsWith('project:') ? projectColor(key.slice(8)) : userColor(key.slice(5))]),
+        mark:100 * entries.filter(([key]) => key.startsWith('project:')).reduce((sum, [, value]) => sum + value, 0) / total};
+    };
+    const legendItem = (color, label) => '<span><i style="background:' + color + '"></i>' + e(label) + '</span>';
+    $('legends').innerHTML = '<div class="color-legend"><strong>' + e(t('ourProjects')) + '</strong><span><svg class="legend-mark" viewBox="0 0 24 10"><path d="M2 9 Q12 0 22 9"/></svg>' + e(t('ourArc')) + '</span>' + projects.map(name => legendItem(projectColor(name), name)).join('') + '</div><div class="color-legend"><strong>' + e(t('otherUsers')) + '</strong>' + users.map(name => legendItem(userColor(name), name)).join('') + legendItem('#9aa6b5', t('unidentified')) + legendItem('var(--line)', t('free')) + '<small>' + e(t('levelBand')) + '</small></div>';
     $('summary').innerHTML = servers.map((server,index) => '<div role="button" tabindex="0" aria-haspopup="dialog" data-server="' + index + '">' + window.PortalRings.card(server.name,
       server.online ? server.used / server.cores * 100 : 0,
       server.online ? t('ours') + ': ' + number(server.ours) + ' ' + t('cores') : t('offline'),
-      {text:server.online ? number(server.used) + '/' + number(server.cores) : '—',unit:t('cores'),ours:server.ours / server.cores * 100}) + '</div>').join('');
+      {text:server.online ? number(server.used) + '/' + number(server.cores) : '—',unit:t('cores'),...ringOptions(server)}) + '</div>').join('');
     $('cards').innerHTML = servers.map((server,index) => {
       const attrs = ' role="button" tabindex="0" aria-haspopup="dialog" data-server="' + index + '"';
       if (!server.online) return '<section class="card"' + attrs + '><h2>' + e(server.name) + '</h2><p>' + e(t('offline')) + '</p></section>';
@@ -42,7 +66,7 @@
       server.jobs.forEach(row => jobs.push({...row,server:server.name,running:running.includes(row.state)}));
       if (!server.jobs.length) server.processes.filter(row => row.cpu >= 1).forEach(row => jobs.push({...row,id:row.person,name:row.program,cores:row.cpu/100,state:'RUNNING',running:true,server:server.name}));
     });
-    $('workspace-table').innerHTML = table(['workspace','cores','jobs','server'],Object.entries(workspace).map(([name,row]) => [name,number(row.cores),row.count,[...row.servers].join(', ')]));
+    $('workspace-table').innerHTML = table(['workspace','cores','jobs','server'],Object.entries(workspace).map(([name,row]) => [name,number(row.cores),row.count,[...row.servers].join(', ')]), projectColor);
     $('chips').innerHTML = ['all','ours','running','queued',...servers.map(row => row.name)].map(key => '<button data-filter="' + e(key) + '" aria-pressed="' + (key === filter) + '">' + e(t(key)) + '</button>').join('');
     const filtered = jobs.filter(row => filter === 'all' || (filter === 'ours' ? row.ours : filter === 'running' ? row.running : filter === 'queued' ? ['Q','PD','PENDING','H'].includes(row.state) : row.server === filter));
     $('job-table').innerHTML = table(['server','workspace','name','owner','cores','state','elapsed'], filtered.map(row => [row.server,row.workspace || '—',row.program || row.person,row.person,number(row.cores),row.state,row.elapsed]));

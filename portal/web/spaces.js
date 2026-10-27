@@ -599,7 +599,12 @@ function dlgHtml() {   // the decision also appears INSIDE the chat, at the end 
   const dg = dlgAtual; if (!dg) return '';
   return '<div class="dlgchat"><strong>' + esc(t('decision')) + '</strong><pre>' + esc(dg.pergunta || '') + '</pre><div class="ops">' +
     dg.opcoes.map(o => '<button class="b' + (o.marcada ? ' on' : '') + '" type="button" data-op="' + esc(o.n) + '">' + esc(o.n) + '. ' + esc(o.texto) + '</button>').join('') +
-    '<button class="b" type="button" data-op="esc">' + esc(t('cancel')) + '</button></div><small class="muted">' + esc(t('freeText')) + '</small></div>';
+    navDlg(dg) + '<button class="b" type="button" data-op="esc">' + esc(t('cancel')) + '</button></div><small class="muted">' + esc(t('freeText')) + '</small></div>';
+}
+function navDlg(dg) {
+  if (!dg.abas && !dg.multipla) return '';
+  return '<div class="ops">' + (dg.multipla ? '<button class="b" type="button" data-op="enter">Confirm checked (Enter)</button>' : '') +
+    '<button class="b" type="button" data-op="left">◀ Previous question</button><button class="b" type="button" data-op="right">Next / Submit ▶</button></div>';
 }
 function desenharDialogo(dg) {
   dlgId = dg && dg.id ? dg.id : '';
@@ -608,7 +613,7 @@ function desenharDialogo(dg) {
   if (!dg || !dg.opcoes || !dg.opcoes.length) { $('dlg').hidden = true; return }
   if (ehConv()) { $('dlg').hidden = true; return }
   $('dlgq').textContent = dg.pergunta || '';
-  $('dlgops').innerHTML = dg.opcoes.map(o => '<button class="b' + (o.marcada ? ' on' : '') + '" type="button" data-op="' + esc(o.n) + '">' + esc(o.n) + '. ' + esc(o.texto) + '</button>').join('');
+  $('dlgops').innerHTML = dg.opcoes.map(o => '<button class="b' + (o.marcada ? ' on' : '') + '" type="button" data-op="' + esc(o.n) + '">' + esc(o.n) + '. ' + esc(o.texto) + '</button>').join('') + navDlg(dg);
   $('dlg').hidden = false;
 }
 $('chat').addEventListener('click', e => { const n = e.target.closest('.dlgchat [data-op]')?.dataset.op; if (n) tecla(n) });

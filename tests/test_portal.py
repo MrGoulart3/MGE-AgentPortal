@@ -264,9 +264,28 @@ class UnidadeTest(unittest.TestCase):
         self.assertTrue(d['opcoes'][0]['marcada'])
         self.assertEqual(d['pergunta'], '☐ Cores\nWhich page?')
 
+    def test_dialog_tabs_and_multiple_choice(self):
+        for tabs in ('☐ Format  ☒ Scope  ✔ Submit', '☐ Format  ☐ Scope'):
+            screen = tabs + '\nChoose formats:\n  1. [x] PDF\n  2. [ ] Text\n'
+            with self.subTest(tabs=tabs), mock.patch.object(self.p, 'tela_recente', return_value=screen):
+                decision = self.p.situacao(dict(pane='w1:p1', status='working'))['dialogo']
+                self.assertTrue(decision['abas'])
+                self.assertTrue(decision['multipla'])
+                self.assertEqual(len(decision['opcoes']), 2)
+        screen = 'Choose formats:\n❯ 1. [ ] PDF\n  2. [✔] Text\nEnter to confirm'
+        with mock.patch.object(self.p, 'tela_recente', return_value=screen):
+            decision = self.p.situacao(dict(pane='w1:p1', status='idle'))['dialogo']
+            self.assertFalse(decision['abas'])
+            self.assertTrue(decision['multipla'])
+        self.assertTrue({'left', 'right', 'tab', 'space'} <= self.p.TECLAS)
+
     def test_dialogo_permissao(self):
         d = self.p.dialogo('Do you want to proceed?\n❯ 1. Yes\n  2. No')
         self.assertEqual(d['pergunta'], 'Do you want to proceed?')
+        with mock.patch.object(self.p, 'tela_recente', return_value='Confirm?\n❯ 1. Yes\n  2. No'):
+            decision = self.p.situacao(dict(pane='w1:p1', status='blocked'))['dialogo']
+            self.assertFalse(decision['abas'])
+            self.assertFalse(decision['multipla'])
         self.assertEqual([o['texto'] for o in d['opcoes']], ['Yes', 'No'])
         self.assertTrue(d['opcoes'][0]['marcada'])
 

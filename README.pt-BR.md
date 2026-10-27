@@ -1,5 +1,7 @@
 *[English version](README.md)*
 
+Perguntas do Claude Code aceitam várias abas e múltipla escolha: use **Confirm checked (Enter)**, **Previous question**, **Next / Submit** ou as teclas ←/→/Tab/Space. Os anéis dos servidores agrupam nosso uso por workspace/projeto e os demais por usuário; o arco externo marca nossa parte, com legendas separadas e faixa de nível do uso total.
+
 # MGE-AgentPortal
 
 Portal web para conversar de qualquer navegador com agentes de IA, como Claude Code e Codex, que rodam no multiplexador **herdr** de uma máquina Linux. O servidor usa somente a biblioteca padrão do Python, sem dependências de pip.

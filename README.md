@@ -1,5 +1,7 @@
 *[Versão em português](README.pt-BR.md)*
 
+Claude Code questions support multiple tabs and checkbox choices: use **Confirm checked (Enter)**, **Previous question**, **Next / Submit**, or the Left/Right/Tab/Space keys. Server rings group our usage by workspace/project and other usage by user; the outer arc marks our share, with separate legends and a total-usage level band.
+
 # MGE-AgentPortal
 
 A web portal for chatting from any browser with AI agents, such as Claude Code and Codex, running in the **herdr** multiplexer on a Linux host. The server uses only the Python standard library, with no pip dependencies.
