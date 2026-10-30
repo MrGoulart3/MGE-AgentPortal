@@ -95,5 +95,22 @@
   },
   "actions_dir": "~/tools/MGE-UAH-Orquestra/orquestra/bin",
   "orchestra_state": "~/.local/state/mge-orchestra",
-  "coordinator_pane": "w1:p1"
+  "coordinator_pane": "w1:p1",
+  "upload_min_free_gb": 10,
+  "download_timeout": 7200,
+  "cache_uso": "~/.local/state/mge-agentportal/usage.json",
+  "use_remaining_credits": false,
+  "priority": {
+    "enabled": false,
+    "projects": {
+      "sample-project": 5,
+      "example-project": 5
+    },
+    "scores": "priority/scores.json",
+    "order": "priority/order",
+    "paused": "priority/paused",
+    "log": "priority/changes.log",
+    "lock": "priority/.lock",
+    "panes": {}
+  }
 }

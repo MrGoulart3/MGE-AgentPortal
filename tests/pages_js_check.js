@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname,'../portal/web');
 async function check(page) {
-  const elements = new Map(), listeners = {};
+  const elements = new Map(), listeners = {}, priorityPosts = [];
   const element = id => {
     if (!elements.has(id)) elements.set(id,{value:'',innerHTML:'',textContent:'',dataset:{},setAttribute(){},files:[],open:false,showModal(){this.open=true;},close(){this.open=false;}});
     return elements.get(id);
@@ -19,7 +19,14 @@ async function check(page) {
     {ours:false,cores:0.5,state:'R'},
     {person:'queued-user',ours:false,cores:8,state:'PENDING'}
   );
-  const context = vm.createContext({console,Event,AbortSignal,URLSearchParams,navigator:{language:'en'},localStorage:{getItem(){return '';},setItem(){}},sessionStorage:{getItem(){return '';}},setTimeout(){},document:{documentElement:{},querySelectorAll(selector){return selector === '[data-i18n]' ? labels : languages;},getElementById:element},fetch:async()=>({ok:true,json:async()=>data}),addEventListener:(name,callback)=>{listeners[name]=callback;}});
+  const priority = {enabled:true,scores:{[malicious]:5,'sample-project':5},order:['sample-project',malicious],paused:[]};
+  const context = vm.createContext({console,Event,AbortSignal,URLSearchParams,navigator:{language:'en'},localStorage:{getItem(){return '';},setItem(){}},sessionStorage:{getItem(){return '';}},setTimeout(){},document:{documentElement:{},querySelectorAll(selector){return selector === '[data-i18n]' ? labels : languages;},getElementById:element},fetch:async(url,options)=>{
+    if (url === '/api/priority') {
+      if (options.method === 'POST') priorityPosts.push(JSON.parse(options.body));
+      return {ok:true,json:async()=>priority};
+    }
+    return {ok:true,json:async()=>data};
+  },addEventListener:(name,callback)=>{listeners[name]=callback;}});
   context.window = context;
   context.dispatchEvent = event => listeners[event.type]?.();
   for (const file of ['rings.js','pages.js',page+'.js']) vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context);
@@ -30,6 +37,19 @@ async function check(page) {
     assert.ok(element(id).innerHTML.includes('&lt;img'),id+' renders supplied data');
   }
   if (page === 'servers') {
+    assert.equal(element('priority-card').hidden, false);
+    assert.ok(element('priority-rows').innerHTML.includes('&lt;img'));
+    assert.ok(!element('priority-rows').innerHTML.includes('<img'));
+    const input = {value:'',dataset:{project:'sample-project'}};
+    element('priority-rows').querySelectorAll = () => [input];
+    for (const invalid of ['', ' ', '1.5', '-1', '11']) {
+      input.value = invalid;
+      await element('priority-save').onclick();
+      assert.equal(priorityPosts.length, 0);
+    }
+    input.value = '0';
+    await element('priority-save').onclick();
+    assert.deepEqual(priorityPosts, [{scores:{'sample-project':0}}]);
     assert.ok(element('legends').innerHTML.includes('Our projects'));
     assert.ok(element('legends').innerHTML.includes('Other users'));
     assert.ok(!element('legends').innerHTML.includes('<img'));

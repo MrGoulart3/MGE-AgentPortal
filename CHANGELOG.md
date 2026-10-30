@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-29
+
+- Add optional beta project priority scores, authenticated validation, stable slot order, paused projects, atomic files under lock, a change log and configurable agent notifications.
+- Add deliver-later Updates and Need me? requests, plus an opt-in remaining-credits action using a configured usage cache and the existing exception hook.
+- Refuse waking on unknown capacity, retain cached spaces on agent-list failure, reserve configurable upload disk space and enforce a total download deadline.
+- Display shared script-error alerts on every page, with one counter and AbortError filtering; document external scheduler integration and add regression checks.
+
 ## 2026-10-27
 
 - Support tabbed and multiple-choice Claude Code questions, with previous/next navigation, confirmation and Left/Right/Tab/Space keys.

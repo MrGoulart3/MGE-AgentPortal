@@ -11,6 +11,8 @@ config.example.json.
 from __future__ import annotations
 
 from collections import OrderedDict, deque
+from contextlib import contextmanager
+from datetime import datetime
 import fcntl
 import file_store
 import hashlib
@@ -44,6 +46,10 @@ CONFIG_PADRAO = dict(
     orchestra_state=str(Path.home() / '.local/state/mge-orchestra'),
     upload_mb=25,
     upload_pasta='_recebidos_portal',
+    upload_min_free_gb=10,
+    download_timeout=7200,
+    priority=dict(enabled=False),
+    use_remaining_credits=False,
 )
 UPLOAD_EXT = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.txt', '.md', '.csv', '.tsv', '.json',
               '.xyz', '.log', '.out', '.inp', '.gjf', '.com', '.mol', '.mol2', '.sdf', '.pdb', '.cif',
@@ -277,9 +283,19 @@ def _atualizar_spaces() -> list:
     try:
         for w in json.loads(herdr('workspace', 'list').stdout)['result']['workspaces']:
             labels[w['workspace_id']] = w['label']
-    except (ValueError, KeyError, OSError, subprocess.TimeoutExpired):
+    except (ValueError, KeyError, TypeError, OSError, subprocess.TimeoutExpired):
         pass
-    agents = json.loads(herdr('agent', 'list').stdout)['result']['agents']
+    try:
+        result = herdr('agent', 'list')
+        if result.returncode != 0:
+            return _SPACES[1]
+        agents = json.loads(result.stdout)['result']['agents']
+        if not isinstance(agents, list) or any(
+                not isinstance(a, dict) or not isinstance(a.get('pane_id'), str)
+                or not isinstance(a.get('agent_session') or {}, dict) for a in agents):
+            return _SPACES[1]
+    except (ValueError, KeyError, TypeError, OSError, subprocess.TimeoutExpired):
+        return _SPACES[1]
     rows = []
     for a in agents:
         if a.get('agent') not in ('claude', 'codex'):
@@ -291,6 +307,111 @@ def _atualizar_spaces() -> list:
     rows.sort(key=lambda r: (r['agent'] != 'claude', r['pane']))
     _SPACES[:] = [time.monotonic(), rows]
     return rows
+
+
+def priority_path(name: str) -> Path:
+    """Resolve a configured priority file relative to the configuration directory."""
+    path = Path(CFG['priority'][name]).expanduser()
+    return path if path.is_absolute() else DIR / path
+
+
+@contextmanager
+def priority_lock():
+    """Serialize readers and writers across threads and processes."""
+    with LOCK:
+        path = priority_path('lock')
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        with os.fdopen(fd, 'r+') as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX)
+            yield
+
+
+def priority_read() -> dict:
+    """Read scores only for projects explicitly configured by the administrator."""
+    defaults = CFG['priority'].get('projects', {})
+    scores = {}
+    for project, score in defaults.items():
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,99}', project):
+            raise ValueError('Invalid configured project')
+        if type(score) is not int or not 0 <= score <= 10:
+            raise ValueError('Invalid configured score')
+        scores[project] = score
+    try:
+        saved = json.loads(priority_path('scores').read_text())['scores']
+    except FileNotFoundError:
+        saved = {}
+    except (TypeError, KeyError) as error:
+        raise ValueError('Invalid stored scores') from error
+    if not isinstance(saved, dict):
+        raise ValueError('Invalid stored scores')
+    for project in scores:
+        score = saved.get(project, scores[project])
+        if type(score) is not int or not 0 <= score <= 10:
+            raise ValueError('Invalid stored score')
+        scores[project] = score
+    order = list(dict.fromkeys(p for p in read(priority_path('order')).split() if p in scores))
+    return dict(scores=scores, order=order,
+                paused=[p for p, score in scores.items() if score == 0])
+
+
+def priority_save(updates: dict, allowed: set, source: str) -> tuple:
+    """Validate and save scores plus stable order and paused-project files under lock."""
+    with priority_lock():
+        current = priority_read()
+        scores = current['scores']
+        if not isinstance(updates, dict) or not updates:
+            raise ValueError('Provide project scores')
+        for project, score in updates.items():
+            if project not in scores or project not in allowed:
+                raise ValueError('Unknown project')
+            if type(score) is not int or not 0 <= score <= 10:
+                raise ValueError('Scores must be integers from 0 to 10')
+        changes = {p: (scores[p], n) for p, n in updates.items() if scores[p] != n}
+        scores.update(updates)
+        previous = list(dict.fromkeys([*current['order'], *scores]))
+        order = sorted((p for p in previous if scores[p] > 0), key=lambda p: -scores[p])
+        paused = [p for p in scores if scores[p] == 0]
+        values = dict(scores=json.dumps(dict(scores=scores, timestamp=int(time.time())), indent=2) + '\n',
+                      order=' '.join(order) + '\n', paused=' '.join(paused) + '\n')
+        for name, value in values.items():
+            path = priority_path(name)
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            gravar_privado(path, value)
+        log = priority_path('log')
+        log.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        anexar_privado(log, json.dumps(dict(timestamp=int(time.time()), source=source,
+                                          changes=changes, order=order)))
+        return dict(scores=scores, order=order, paused=paused), changes
+
+
+def queue_after(pane: str, text: str, device: str = '') -> None:
+    """Queue an internal request using the existing deliver-later mechanism."""
+    with _DEPOIS_LOCK:
+        items = depois_ler()
+        items.append(dict(id=secrets.token_hex(4), pane=pane, texto=text,
+                          t=time.strftime('%Y-%m-%d %H:%M:%S'), aparelho=device))
+        depois_gravar(items)
+    depois_iniciar()
+
+
+def remaining_credits_enabled() -> bool:
+    """Require explicit opt-in, a usage cache and an executable exception hook."""
+    hook = Path(CFG['actions_dir']).expanduser() / 'trava_excecao'
+    return bool(CFG.get('use_remaining_credits') and CFG.get('cache_uso')
+                and hook.is_file() and os.access(hook, os.X_OK))
+
+
+def usage_window() -> tuple:
+    """Read usage and reset time; reject missing or invalid meter readings."""
+    data = json.loads(Path(CFG['cache_uso']).expanduser().read_text())['data']
+    used = data['fiveHourPercent']
+    if type(used) not in (int, float) or not 0 <= used <= 100:
+        raise ValueError('Usage unavailable')
+    reset = datetime.fromisoformat(data['fiveHourResetsAt'].replace('Z', '+00:00'))
+    if reset.tzinfo is None or reset.timestamp() <= time.time():
+        raise ValueError('Usage window expired or missing timezone')
+    return round(used), reset.astimezone().strftime('%H:%M %Z')
 
 
 def visiveis(publico: bool) -> list:
@@ -588,7 +709,7 @@ def status_sessao(c: dict, sid: str, cwd: str) -> dict:
     out = dict(modelo=str(c.get('modelo', ''))[:60], modo=str(c.get('modo', ''))[:30], ctx=ctx,
                ctx_pct=round(100 * ctx / CFG['janela_contexto']), janela_contexto=CFG['janela_contexto'])
     try:
-        uso = json.loads(read(Path(CFG['cache_uso'])))['data']
+        uso = json.loads(read(Path(CFG['cache_uso']).expanduser()))['data']
         out.update(cinco_h=_numero(uso.get('fiveHourPercent')), cinco_h_reset=str(uso.get('fiveHourResetsAt') or '')[:40])
     except (ValueError, KeyError, TypeError):
         pass
@@ -612,7 +733,7 @@ def limites() -> dict:
         return _LIMITES[1]
     out = {}
     try:
-        uso = json.loads(read(Path(CFG['cache_uso'])))['data']
+        uso = json.loads(read(Path(CFG['cache_uso']).expanduser()))['data']
         out.update(claude_5h=_numero(uso.get('fiveHourPercent')), claude_5h_reset=str(uso.get('fiveHourResetsAt') or '')[:40])
     except (ValueError, KeyError, TypeError):
         pass
@@ -825,6 +946,8 @@ class PortalMixin:
             ('GET', '/api/adormecidos'): self.r_adormecidos,
             ('POST', '/api/acordar'): self.r_acordar,
             ('POST', '/api/acao'): self.r_acao,
+            ('GET', '/api/priority'): self.r_priority,
+            ('POST', '/api/priority'): self.r_priority_save,
             ('POST', '/api/entregas/ocultar'): self.r_entrega_ocultar,
             ('POST', '/api/files/upload'): self.r_arquivo,
             ('GET', '/api/files'): self.r_files, ('GET', '/api/files/download'): self.r_download,
@@ -853,7 +976,56 @@ class PortalMixin:
         if self.authorized():
             campos = ('pane', 'workspace', 'agent', 'status', 'title')
             self.json_reply(200, dict(spaces=[{k: r[k] for k in campos} for r in visiveis(self.public)],
-                                      painel=bool(CFG.get('painel', {}).get('enabled')), upload_mb=CFG['upload_mb']))
+                                      painel=bool(CFG.get('painel', {}).get('enabled')), upload_mb=CFG['upload_mb'],
+                                      use_remaining_credits=remaining_credits_enabled()))
+
+    def priority_visible(self, data: dict) -> dict:
+        if not self.public:
+            return dict(enabled=True, **data)
+        visible = {sp['workspace'] for sp in visiveis(True)}
+        return dict(enabled=True, scores={p: n for p, n in data['scores'].items() if p in visible},
+                    order=[p for p in data['order'] if p in visible],
+                    paused=[p for p in data['paused'] if p in visible])
+
+    def r_priority(self, q):
+        if not self.authorized():
+            return
+        if not CFG.get('priority', {}).get('enabled'):
+            return self.json_reply(200, dict(enabled=False, scores={}, order=[], paused=[]))
+        with priority_lock():
+            data = priority_read()
+        self.json_reply(200, self.priority_visible(data))
+
+    def r_priority_save(self, q):
+        if not self.authorized():
+            return
+        if not CFG.get('priority', {}).get('enabled'):
+            return self.json_reply(503, dict(erro='Project priority is disabled'))
+        data = self.corpo_json()
+        if data is None:
+            return
+        allowed = (set(CFG['priority'].get('projects', {})) if not self.public
+                   else {sp['workspace'] for sp in visiveis(True)})
+        try:
+            result, changes = priority_save(data.get('scores'), allowed,
+                                            'public' if self.public else 'private')
+        except ValueError as error:
+            return self.json_reply(400, dict(erro=str(error)))
+        warnings = []
+        panes = CFG['priority'].get('panes', {})
+        visible = {sp['pane'] for sp in visiveis(self.public)} if panes and changes else set()
+        for project, (old, score) in changes.items():
+            pane = panes.get(project)
+            if pane and pane in visible:
+                message = (f'{project}: your project priority changed from {old} to {score} (0–10). '
+                           + ('Do not request new scheduler slots while the score is 0. '
+                              if score == 0 else '')
+                           + 'Check the configured scheduler policy before submitting new work.')
+                try:
+                    queue_after(pane, message, self.nome_aparelho())
+                except OSError:
+                    warnings.append(project)
+        self.json_reply(200, dict(**self.priority_visible(result), notification_warnings=warnings))
 
     def r_recados(self, q):
         if self.authorized() and (sp := self.pane_q(q)):
@@ -977,9 +1149,12 @@ class PortalMixin:
             return
         sp = space(str(data.get('pane', '')), self.public)
         acao = str(data.get('acao', ''))
-        cmd = {'reiniciar': ['reiniciar_space', '--forcar'], 'fechar': ['fechar_space'], 'liberar_trava': ['trava_excecao']}.get(acao)
+        cmd = {'reiniciar': ['reiniciar_space', '--forcar'], 'fechar': ['fechar_space'],
+               'liberar_trava': ['trava_excecao'], 'use_remaining_credits': ['trava_excecao']}.get(acao)
         if not sp or not cmd or sp['agent'] != 'claude':
             return self.json_reply(400, dict(erro='space ou ação inválidos'))
+        if acao == 'use_remaining_credits' and not remaining_credits_enabled():
+            return self.json_reply(503, dict(erro='Remaining credits action is disabled'))
         exe = str(Path(CFG['actions_dir']).expanduser() / cmd[0])
         rein = Path(CFG['orchestra_state']).expanduser() / 'reinicio'
         if acao == 'reiniciar' and (rein / f"{sp['pane']}.cancelar").exists():
@@ -998,6 +1173,24 @@ class PortalMixin:
             _REINICIO[sp['pane']] = subprocess.Popen([exe, sp['pane'], *cmd[1:]], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                                      stderr=subprocess.DEVNULL, start_new_session=True)
             texto = 'reiniciando a sessão (leva 1–5 min)'
+        elif acao == 'use_remaining_credits':
+            try:
+                used, reset = usage_window()
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                return self.json_reply(503, dict(erro='Usage cache unavailable or expired'))
+            message = (f'[Use remaining credits] The usage window is {used}% used and resets at {reset}. ')
+            if sp['pane'] == CFG.get('coordinator_pane'):
+                message += ('Ask the user which projects should be excluded. Wait for their answer, '
+                            'then release the exception hook and send this request to the other projects. '
+                            'Also work on your own tasks until 10 minutes before the reset. Save a handoff.')
+            else:
+                result = subprocess.run([exe, sp['pane']], capture_output=True, text=True, timeout=20)
+                if result.returncode != 0:
+                    return self.json_reply(502, dict(erro='Could not release the credit lock'))
+                message += ('The credit lock has been released. Work on available tasks within existing '
+                            'permissions until 10 minutes before the reset, then save a handoff.')
+            queue_after(sp['pane'], message, self.nome_aparelho())
+            texto = f'Request queued for task completion ({used}% used; resets at {reset})'
         else:
             r = subprocess.run([exe, sp['pane']], capture_output=True, text=True, timeout=20)
             if r.returncode != 0:
@@ -1027,9 +1220,17 @@ class PortalMixin:
             return self.json_reply(400, dict(erro='space não está adormecido (ou não existe)'))
         if _ACORDANDO.get(ws) and _ACORDANDO[ws].poll() is None:
             return self.json_reply(409, dict(erro='já está acordando este space'))
-        capacity = subprocess.run([str(Path(CFG['actions_dir']).expanduser() / 'capacidade_pc')], capture_output=True, text=True, timeout=30, check=True).stdout
-        if not capacity.strip() or any(v in capacity for v in ('LOTADO', 'LOTADA', 'FULL')):
-            return self.json_reply(503, dict(erro='PC lotado agora (capacidade_pc): não abro sessão nova'))
+        try:
+            result = subprocess.run([str(Path(CFG['actions_dir']).expanduser() / 'capacidade_pc')],
+                                    capture_output=True, text=True, timeout=30)
+            capacity = result.stdout.upper()
+            known = re.search(r'(?m)^\s*(?:CAPACITY|VEREDITO)\s*:\s*(?:OK|TIGHT|APERTADO)\s*$', capacity)
+            available = result.returncode == 0 and known and not any(
+                value in capacity for value in ('LOTADO', 'LOTADA', 'FULL', 'UNKNOWN', 'DESCONHECID'))
+        except (OSError, subprocess.SubprocessError):
+            available = False
+        if not available:
+            return self.json_reply(503, dict(erro='PC full or capacity unknown; session will not be started'))
         _ACORDANDO[ws] = subprocess.Popen([str(Path(CFG['actions_dir']).expanduser() / 'acordar_space'), ws], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                           stderr=subprocess.DEVNULL, start_new_session=True)
         registrar(ws, 'acao', 'acordar', self.nome_aparelho())
@@ -1083,6 +1284,12 @@ class PortalMixin:
             pasta = file_store.folder(str(cwd), sp['workspace'], options, 'inbox')
         except ValueError:
             return self.json_reply(400, dict(erro='Invalid folder / Pasta inválida'))
+        disk = pasta
+        while not disk.exists():
+            disk = disk.parent
+        minimum = float(CFG.get('upload_min_free_gb', 10))
+        if shutil.disk_usage(disk).free - n < minimum * 2**30:
+            return self.json_reply(507, dict(erro=f'Upload requires at least {minimum:g} GiB free after transfer'))
         if not pasta.exists():
             pasta.mkdir(mode=0o700, parents=True)
             (pasta / '.gitignore').write_text('*\n')      # uploads nunca entram no git do projeto
@@ -1168,9 +1375,32 @@ class PortalMixin:
             self.cabecalhos()
             self.end_headers()
             if self.command != 'HEAD':
-                shutil.copyfileobj(stream, self.wfile)
-                with LOCK:
-                    file_store.mark(DIR, root / name, 'baixado')
+                timeout = float(CFG.get('download_timeout', 7200))
+                deadline = time.monotonic() + timeout
+                timer = threading.Timer(timeout, self.derrubar)
+                timer.daemon = True
+                timer.start()
+                try:
+                    remaining = os.fstat(stream.fileno()).st_size
+                    while remaining:
+                        left = deadline - time.monotonic()
+                        if left <= 0:
+                            self.close_connection = True
+                            return
+                        self.connection.settimeout(min(60, left))
+                        chunk = stream.read(min(262144, remaining))
+                        if not chunk:
+                            self.close_connection = True
+                            return
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
+                    if time.monotonic() < deadline:
+                        with LOCK:
+                            file_store.mark(DIR, root / name, 'baixado')
+                except OSError:
+                    self.close_connection = True
+                finally:
+                    timer.cancel()
 
     # ------------- acessos
     def r_pedir(self, q):

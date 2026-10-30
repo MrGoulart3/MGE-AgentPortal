@@ -101,6 +101,11 @@ const T = {
     "threads": "📨 Recados",
     "threadsTitle": "cada recado seu com a resposta final do agente",
     "queued": "📨 Seu recado está na fila do agente: ele lê quando o comando atual terminar. Não precisa reenviar.",
+    "updates": "📰 Updates",
+    "needMe": "🙋 Need me?",
+    "useRemainingCredits": "⚡ Use remaining credits",
+    "updatesRequest": "[Updates] Please give a brief project update: progress since the last update, running work and job IDs if applicable, next steps, and blockers. Reply here in a few lines.",
+    "needMeRequest": "[Need me?] Is anything waiting on the user: a decision, approval, file, credential, or test? List each item on one line with your proposed default. If there are none, reply: Nothing pending.",
     "quick": "Rápido:",
     "goAhead": "▶ pode seguir",
     "goAheadText": "pode seguir",
@@ -242,6 +247,11 @@ const T = {
     "threads": "📨 Messages",
     "threadsTitle": "each of your messages with the agent's final reply",
     "queued": "📨 Your message is in the agent's queue: it is read when the current command finishes. No need to resend.",
+    "updates": "📰 Updates",
+    "needMe": "🙋 Need me?",
+    "useRemainingCredits": "⚡ Use remaining credits",
+    "updatesRequest": "[Updates] Please give a brief project update: progress since the last update, running work and job IDs if applicable, next steps, and blockers. Reply here in a few lines.",
+    "needMeRequest": "[Need me?] Is anything waiting on the user: a decision, approval, file, credential, or test? List each item on one line with your proposed default. If there are none, reply: Nothing pending.",
     "quick": "Quick:",
     "goAhead": "▶ go ahead",
     "goAheadText": "go ahead",
@@ -410,6 +420,7 @@ async function carregarLista(forcar) {
   if (!forcar && Date.now() - ultLista < 6000 && lista.length) return;
   const resposta = await api('/api/spaces');
   maxUploadMB = num(resposta.upload_mb, 25);
+  $('use-remaining-credits').hidden = !resposta.use_remaining_credits;
   lista = resposta.spaces; $('abrirPainel').hidden = !resposta.painel; ultLista = Date.now();
   carregarAcessos();
   desenharLista();
@@ -659,6 +670,11 @@ async function tecla(k) {
   catch (err) { msgErro(err); setTimeout(atualizar, 300) }
 }
 $('acoes').onclick = async e => {   // quick replies go straight to the agent; the draft and attachments stay put
+  const later = e.target.closest('[data-depois]');
+  if (later && atual) {
+    try { await api('/api/enviar', {pane:atual,texto:t(later.dataset.depois),depois:true}); msgI18n('heldAfterOk',true); ultRecados = 0; setTimeout(atualizar,1000); } catch (err) { msg(err.message,false); }
+    return;
+  }
   const action = e.target.closest('[data-acao]');
   if (action && atual) {
     try { const d = await api('/api/acao', {pane:atual,acao:action.dataset.acao}); msg(d.msg,true); } catch (err) { msg(err.message,false); }

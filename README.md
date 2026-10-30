@@ -194,7 +194,7 @@ sudo tailscale funnel --https=443 off
 
 ## Configuration
 
-The file is `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` lets you choose another directory for configuration, the key, access records, and logs; use the same value in the controller and the server. Restart the process after editing the configuration. File paths in JSON must be absolute, without `~`, except for the panel paths described below; `herdr` may also be an executable name on the `PATH`.
+The file is `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` lets you choose another directory for configuration, the key, access records, and logs; use the same value in the controller and the server. Restart the process after editing the configuration. File paths in JSON must be absolute, without `~`, except for the panel, priority and usage-cache paths described below; `herdr` may also be an executable name on the `PATH`.
 
 Existing Portuguese names remain part of the public interface: `chave` means “key” (`portal-ctl chave` generates one), `painel` means “panel”, `estado` means “state”, `herdr_falso.py` provides fake herdr, and `gerar_imagens.py` generates screenshots. Configuration keys keep their spelling; the table translates their purpose.
 
@@ -216,15 +216,38 @@ Existing Portuguese names remain part of the public interface: `chave` means “
 | `max_conexoes_privada` | `24` | Simultaneous connection slots per private listener. |
 | `max_conexoes_publica` | `16` | Simultaneous connection slots on the public port. |
 
-Paths containing `~` in the table describe defaults calculated by the program; when supplying them in JSON, write the absolute path. The last three optional cache and connection settings are not included in the example file.
+Use absolute paths for older settings unless documented otherwise. `cache_uso` and the new priority paths also accept `~`. The example file includes the usage cache; connection-slot overrides remain optional.
+
+## Project priority and quick requests (2026-10-29)
+
+The Servers page has an optional **Project priority · beta** card. Enable `priority.enabled` and configure `priority.projects` as a map of generic project IDs to default integer scores (0–10). These IDs are the allowlist; saved files cannot introduce projects. Authenticated `GET /api/priority` returns `enabled`, `scores`, `order` and `paused`; `POST /api/priority` accepts `{"scores":{"sample-project":8}}`. Partial updates are supported. Booleans, fractions, numeric strings, blank values and unknown projects are rejected. Public access additionally requires device approval and exposes only projects matching visible workspace labels.
+
+Configure all five files in `config.example.json`: `priority.scores` (JSON containing `scores` and `timestamp`), `priority.order` (whitespace-separated active project IDs), `priority.paused` (IDs with score 0), `priority.log` (JSON lines with changes and resulting order) and `priority.lock`. Priority paths support `~`; relative paths resolve beneath the portal configuration directory. Saving holds a thread/process lock and atomically replaces each data file with private permissions. Higher scores come first; equal scores retain their previous relative order. Projects absent from the previous order follow the configured project order. A zero score pauses **new slots**, leaving running work alone.
+
+An external slot distributor or scheduler adapter can read these files and apply the policy; the portal does not submit, pause or cancel jobs. For a consistent view across all three files, the reader must acquire the same `priority.lock` with `flock` before reading (individual replacements are atomic; the group is not a single transaction). Integrate your own slot allocator and quota checker at the job-submission boundary. Private tools such as `cota_space` and `checar_clusters` are not included. `priority.panes` optionally maps project IDs to pane IDs; changed scores queue an English notification through the existing deliver-later mechanism, without notifying unchanged projects. A response may include `notification_warnings` if saving succeeds but queuing a notification fails.
+
+On Spaces, **📰 Updates** requests a short progress report and **🙋 Need me?** asks for pending user decisions. Both use `depois: true` and arrive after the current task finishes. **⚡ Use remaining credits** is optional and hidden unless `use_remaining_credits` is true, `cache_uso` is configured, and `actions_dir/trava_excecao` is executable. The authenticated `/api/acao` action is `use_remaining_credits`; it is available for Claude sessions. The cache must contain `{"data":{"fiveHourPercent":42,"fiveHourResetsAt":"2099-01-01T12:00:00Z"}}` with a future, timezone-aware reset. Replace this example timestamp with the meter's current reset time. Missing, invalid or expired readings reject the action before running the hook. Cache paths support `~`.
+
+For a regular pane the action calls the existing exception hook, then queues an English request containing the used percentage and local reset time, asking the agent to work until ten minutes before renewal and save a handoff. For `coordinator_pane`, it queues a request to ask the user which projects should be excluded and wait for the answer before distributing work; the portal does not release other agents' locks automatically. Supply your own compatible meter and exception hook to enable this integration.
+
+## Audit robustness (2026-10-29)
+
+- Wake refuses unknown capacity, command failure, timeout or full capacity. The capacity script must exit successfully and print a complete `Capacity: OK`, `Capacity: TIGHT`, `VEREDITO: OK` or `VEREDITO: APERTADO` line; unknown/full markers veto waking.
+- A failed or malformed `herdr agent list` preserves the last successful space list.
+- Both upload routes reject with HTTP 507 when the destination disk would have less than `upload_min_free_gb` free after the declared body (default **10 GiB**).
+- Downloads have a total `download_timeout` (default **7200 seconds / 2 hours**), including slow writes, and at most 60 seconds per write. Expired or interrupted downloads are not marked as downloaded. `HEAD` does not transfer or mark the file.
+- Every page installs shared `error` and `unhandledrejection` handlers before its other scripts. A visible alert uses one element with a counter; `AbortError` is ignored.
 
 ## Tests
 
 From the repository root:
 
 ```bash
+python3 -m pytest tests -q
 python3 -m unittest discover -s tests -v
 node --test tests/*_js_check.js
+python3 .github/scripts/scan_sensitive.py
+python3 .github/scripts/check.py
 ```
 
 The tests use `tests/herdr_falso.py`, a temporary HOME, isolated configuration, fictional transcripts, and local ports. They do not need real herdr, agents, or Tailscale. They check authentication, code-based approval, cookies and headers, workspace hiding, conversation, limits, fingerprinted decisions, messages, and uploads, including interrupted transfers.

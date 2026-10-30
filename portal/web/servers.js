@@ -3,6 +3,41 @@
   const {t,request,bytes,dateTime,escape:e} = window.PortalPage;
   const $ = id => document.getElementById(id);
   let snapshot = null, filter = 'all', selected = null;
+  let priority = null;
+  function renderPriority() {
+    if (!priority?.enabled) return;
+    $('priority-card').hidden = false;
+    const scores = priority.scores, previous = priority.order;
+    const names = Object.keys(scores).sort((a,b) => scores[b] - scores[a] ||
+      (previous.includes(a) ? previous.indexOf(a) : Infinity) - (previous.includes(b) ? previous.indexOf(b) : Infinity) || a.localeCompare(b));
+    $('priority-rows').innerHTML = names.map(name => '<tr><td><strong>' + e(name) + '</strong></td><td><input type="number" min="0" max="10" step="1" inputmode="numeric" data-project="' + e(name) + '" aria-label="' + e(t('score') + ': ' + name) + '" value="' + scores[name] + '"></td><td>' +
+      e(scores[name] === 0 ? t('priorityPaused') : previous.includes(name) ? previous.indexOf(name) + 1 : t('priorityUnordered')) + '</td></tr>').join('');
+    $('priority-save').disabled = true;
+  }
+  $('priority-rows').oninput = () => { $('priority-save').disabled = false; $('priority-status').textContent = t('priorityUnsaved'); };
+  $('priority-save').onclick = async () => {
+    const scores = Object.create(null);
+    for (const input of $('priority-rows').querySelectorAll('input[data-project]')) {
+      const score = Number(input.value);
+      if (!input.value.trim() || !Number.isInteger(score) || score < 0 || score > 10) {
+        $('priority-status').textContent = t('priorityInvalid'); return;
+      }
+      scores[input.dataset.project] = score;
+    }
+    $('priority-save').disabled = true; $('priority-status').textContent = t('prioritySaving');
+    try {
+      priority = await (await request('/api/priority', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scores})})).json();
+      renderPriority();
+      $('priority-status').textContent = priority.notification_warnings?.length ? t('priorityNotifyFailed') : t('prioritySaved') + (priority.order.join(' → ') || '—');
+    } catch (error) { $('priority-save').disabled = false; $('priority-status').textContent = error.message; }
+  };
+  async function loadPriority() {
+    try { priority = await (await request('/api/priority')).json(); renderPriority(); }
+    catch (error) { $('priority-card').hidden = false; $('priority-status').textContent = error.message; }
+  }
+  addEventListener('portal-render', () => {
+    if ($('priority-save').disabled) renderPriority();
+  });
   const number = value => Number(value || 0).toFixed(1).replace(/\.0$/, '');
   const table = (headers, rows, firstColor) => '<thead><tr>' + headers.map(key => '<th>' + e(t(key === 'cores' ? 'coresHeader' : key)) + '</th>').join('') + '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map((cell,index) => '<td>' + (index === 0 && firstColor ? '<i class="project-dot" style="background:' + firstColor(cell) + '"></i>' : '') + e(cell) + '</td>').join('') + '</tr>').join('') + '</tbody>';
   function spark(server) {
@@ -124,4 +159,5 @@
     setTimeout(update,60000);
   }
   update();
+  loadPriority();
 })();

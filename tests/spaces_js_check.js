@@ -11,12 +11,13 @@ function element(id) {
 const saved = new Map();
 const storage = {getItem(k){return saved.get(k) ?? null;}, setItem(k,v){saved.set(k,v);}, removeItem(k){saved.delete(k);}};
 let limit = 40;
+const requests = [];
 const context = vm.createContext({
   document:{getElementById:element, querySelector:element, querySelectorAll(){return [];}, addEventListener(){}, documentElement:{}},
   navigator:{language:'en'}, sessionStorage:storage, localStorage:storage, window:{},
   matchMedia(){return {matches:false};}, addEventListener(){}, clearTimeout(){}, setTimeout(){},
   Blob, AbortSignal, console,
-  async fetch(url) {return {ok:true, status:200, async json(){return url === '/api/spaces' ? {spaces:[], upload_mb:limit} : {pendentes:[], aparelhos:[]};}};}
+  async fetch(url, options) {requests.push([url,options]);return {ok:true, status:200, async json(){return url === '/api/spaces' ? {spaces:[], upload_mb:limit} : {pendentes:[], aparelhos:[]};}};}
 });
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../portal/web/spaces.js'), 'utf8'), context);
 (async () => {
@@ -68,5 +69,39 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, '../portal/web/spaces.js'),
   vm.runInContext('dlgAtual={abas:true,multipla:true,pergunta:"Choose",opcoes:[]}', context);
   assert.ok(vm.runInContext('dlgHtml()', context).includes('Next / Submit'));
   for (const key of ['left','right','tab','space']) assert.ok(html.includes('data-k="' + key + '"'));
+  assert.ok(element('use-remaining-credits').hidden);
+  vm.runInContext("atual='w1:p1'", context);
+  for (const request of ['updatesRequest','needMeRequest']) {
+    await element('acoes').onclick({target:{closest:selector => selector === '[data-depois]' ? {dataset:{depois:request}} : null}});
+    const [url, options] = requests.at(-1), body = JSON.parse(options.body);
+    assert.equal(url, '/api/enviar');
+    assert.equal(body.depois, true);
+    assert.ok(body.texto.startsWith(request === 'updatesRequest' ? '[Updates]' : '[Need me?]'));
+    assert.equal(body.agora, undefined);
+  }
   console.log('Configured uploads and bilingual context rendering: OK');
 })().catch(error => {console.error(error); process.exitCode=1;});
+
+// The shared banner catches failures before page scripts run, with a single counter.
+{
+  const nodes = new Map(), events = {};
+  const document = {
+    readyState:'loading', body:null,
+    documentElement:{appendChild(node){nodes.set(node.id,node);}},
+    getElementById:id=>nodes.get(id),
+    createElement:()=>({dataset:{},style:{},setAttribute(){}}), addEventListener(){}
+  };
+  const sandbox = vm.createContext({document,window:{addEventListener:(name,fn)=>{events[name]=fn;}},addEventListener(){}});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../portal/web/nav.js'),'utf8'),sandbox);
+  events.error({message:'Broken script',filename:'/example.js',lineno:5});
+  events.unhandledrejection({reason:{message:'Failed promise'}});
+  events.unhandledrejection({reason:{name:'AbortError'}});
+  events.error({error:{name:'AbortError'}});
+  assert.equal(nodes.size,1);
+  assert.equal(nodes.get('page-script-error').dataset.count,'2');
+  assert.ok(nodes.get('page-script-error').textContent.includes('Failed promise (×2)'));
+  for (const page of ['spaces','servers','files','painel']) {
+    const source = fs.readFileSync(path.join(__dirname,'../portal/web',page+'.html'),'utf8');
+    assert.ok(source.indexOf('/nav.js') < source.indexOf('/'+(page === 'servers' || page === 'files' ? 'rings' : page)+'.js'));
+  }
+}

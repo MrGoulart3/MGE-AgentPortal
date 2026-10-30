@@ -194,7 +194,7 @@ sudo tailscale funnel --https=443 off
 
 ## Configuração
 
-O arquivo é `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` permite escolher outro diretório de configuração, chave, acessos e logs; use o mesmo valor no controlador e no servidor. Reinicie o processo após editar a configuração. Caminhos de arquivos no JSON devem ser absolutos, sem `~`, exceto os caminhos do painel descritos abaixo; `herdr` também pode ser um nome de executável no `PATH`.
+O arquivo é `~/.config/mge-agentportal/config.json`. `MGE_PORTAL_DIR` permite escolher outro diretório de configuração, chave, acessos e logs; use o mesmo valor no controlador e no servidor. Reinicie o processo após editar a configuração. Caminhos de arquivos no JSON devem ser absolutos, sem `~`, exceto os caminhos do painel, de prioridade e do cache de uso descritos abaixo; `herdr` também pode ser um nome de executável no `PATH`.
 
 Os nomes existentes em português continuam na interface pública: `portal-ctl chave` gera uma chave, `/painel` abre o painel, `/api/estado` retorna seu estado, `herdr_falso.py` simula o herdr e `gerar_imagens.py` gera capturas de tela. As chaves de configuração mantêm a grafia; a tabela explica sua função.
 
@@ -216,15 +216,38 @@ Os nomes existentes em português continuam na interface pública: `portal-ctl c
 | `max_conexoes_privada` | `24` | Vagas de conexão simultânea por listener privado. |
 | `max_conexoes_publica` | `16` | Vagas de conexão simultânea na porta pública. |
 
-Os caminhos com `~` na tabela descrevem padrões calculados pelo programa; ao fornecê-los no JSON, escreva o caminho absoluto. As três últimas opções opcionais de cache e conexões não constam no arquivo de exemplo.
+Use caminhos absolutos nas opções antigas, salvo indicação em contrário. `cache_uso` e os novos caminhos de prioridade também aceitam `~`. O exemplo inclui o cache de uso; os limites de conexões continuam opcionais.
+
+## Prioridade por projeto e pedidos rápidos (29/10/2026)
+
+A página Servers tem o cartão opcional **Project priority · beta**. Ative `priority.enabled` e configure `priority.projects` como mapa de IDs genéricos de projeto para notas inteiras padrão (0–10). Esses IDs são a lista de projetos conhecidos; arquivos salvos não acrescentam projetos. `GET /api/priority`, autenticado, retorna `enabled`, `scores`, `order` e `paused`; `POST /api/priority` aceita `{"scores":{"sample-project":8}}`. Atualizações parciais são permitidas. Booleanos, frações, strings numéricas, valores vazios e projetos desconhecidos são rejeitados. Na porta pública também é necessário aparelho aprovado; apenas projetos correspondentes a rótulos de workspaces visíveis são expostos.
+
+Configure os cinco arquivos de `config.example.json`: `priority.scores` (JSON com `scores` e `timestamp`), `priority.order` (IDs ativos separados por espaços), `priority.paused` (IDs com nota 0), `priority.log` (uma linha JSON por gravação, com mudanças e ordem resultante) e `priority.lock`. Esses caminhos aceitam `~`; caminhos relativos partem do diretório de configuração do portal. A gravação usa lock entre threads/processos e substituição atômica de cada arquivo de dados com permissões privadas. Notas maiores vêm primeiro; empates preservam a ordem relativa anterior. Projetos ausentes da ordem anterior seguem a ordem configurada. Nota zero pausa **novas vagas**, sem alterar trabalhos em execução.
+
+Um distribuidor externo de vagas ou adaptador de scheduler pode ler esses arquivos e aplicar a política; o portal não submete, pausa nem cancela jobs. Para ler os três arquivos de forma consistente, o consumidor deve adquirir o mesmo `priority.lock` com `flock` antes da leitura (cada substituição é atômica; o conjunto não é uma transação única). Integre seu próprio distribuidor e verificador de cota no ponto de submissão de jobs. As ferramentas privadas `cota_space` e `checar_clusters` não estão incluídas. O mapa opcional `priority.panes` associa IDs de projeto a panes; somente notas alteradas geram aviso em inglês pela fila de entrega posterior existente. A resposta pode trazer `notification_warnings` se a gravação funcionar, mas algum aviso não puder entrar na fila.
+
+Na página Spaces, **📰 Updates** pede um resumo do andamento e **🙋 Need me?** pergunta por pendências com o usuário. Ambos usam `depois: true` e chegam quando a tarefa atual terminar. **⚡ Use remaining credits** é opcional e fica oculto sem `use_remaining_credits: true`, `cache_uso` configurado e `actions_dir/trava_excecao` executável. A ação autenticada em `/api/acao` é `use_remaining_credits`, disponível para sessões Claude. O cache deve conter `{"data":{"fiveHourPercent":42,"fiveHourResetsAt":"2099-01-01T12:00:00Z"}}`, com renovação futura e fuso horário. Substitua a data do exemplo pela renovação atual do medidor. Leitura ausente, inválida ou vencida recusa a ação antes de executar o hook. O caminho do cache aceita `~`.
+
+Para um pane comum, a ação chama o hook de exceção existente e enfileira pedido em inglês com percentual usado e hora local da renovação, solicitando trabalho até dez minutos antes da renovação e um handoff ao final. No `coordinator_pane`, enfileira pedido para perguntar ao usuário quais projetos ficam de fora e aguardar a resposta antes de distribuir trabalho; o portal não libera automaticamente as travas dos demais agentes. Forneça medidor e hook compatíveis para habilitar a integração.
+
+## Robustez da auditoria (29/10/2026)
+
+- Acordar uma sessão recusa capacidade desconhecida, falha de comando, timeout ou lotação. O script deve sair com sucesso e imprimir uma linha completa `Capacity: OK`, `Capacity: TIGHT`, `VEREDITO: OK` ou `VEREDITO: APERTADO`; marcadores de capacidade desconhecida/lotação vetam a abertura.
+- Falha ou resposta malformada de `herdr agent list` preserva a última lista válida de spaces.
+- As duas rotas de upload retornam HTTP 507 se o disco de destino ficaria com menos de `upload_min_free_gb` após receber o corpo declarado (padrão **10 GiB**).
+- Downloads têm prazo total `download_timeout` (padrão **7200 segundos / 2 horas**), incluindo escritas lentas, e no máximo 60 segundos por escrita. Transferências vencidas ou interrompidas não recebem marca de baixadas. `HEAD` não transfere nem marca o arquivo.
+- Todas as páginas instalam os handlers compartilhados de `error` e `unhandledrejection` antes dos demais scripts. Um único alerta visível mantém contador; `AbortError` é ignorado.
 
 ## Testes
 
 Na raiz do repositório:
 
 ```bash
+python3 -m pytest tests -q
 python3 -m unittest discover -s tests -v
 node --test tests/*_js_check.js
+python3 .github/scripts/scan_sensitive.py
+python3 .github/scripts/check.py
 ```
 
 Os testes usam `tests/herdr_falso.py`, HOME temporário, configuração isolada, transcrições fictícias e portas locais. Não precisam de herdr real, agentes ou Tailscale. Conferem autenticação, aprovação com código, cookies e cabeçalhos, ocultação de workspaces, conversa, limites, decisões com impressão digital, recados e uploads, incluindo envio interrompido.
